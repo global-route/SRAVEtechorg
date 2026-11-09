@@ -1,0 +1,25 @@
+# Internal docs — not for public repo
+internal/
+
+# Original working drafts
+system_architecture_technical_blueprint.md
+core_api_integration_specification.md
+data_privacy_security_framework.md
+devops_infrastructure_runbook.md
+digital_public_goods_dpg_compliance_guide.md
+go_to_market_grant_strategy.md
+doc.md
+
+# Environment & secrets
+.env
+*.key
+*.pem
+secrets/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
