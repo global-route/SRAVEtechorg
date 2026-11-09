@@ -1,0 +1,98 @@
+openapi: "3.0.3"
+info:
+  title: SRAVE API
+  version: "1.0.0"
+  description: Spatial Revenue & Asset Verification Engine — public API reference.
+  contact:
+    name: Atlantic Tech Innovations
+    url: https://github.com/global-route/SRAVEtechorg
+
+servers:
+  - url: https://api.srave.io/api/v1
+
+security:
+  - bearerAuth: []
+
+paths:
+  /spatial/ingest:
+    post:
+      summary: Trigger satellite imagery ingestion and AI footprint extraction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngestRequest"
+      responses:
+        "202": { description: Job queued }
+        "401": { description: Unauthorized }
+
+  /audit/lga/{lga_id}/gap-analysis:
+    get:
+      summary: Revenue gap between detected buildings and registered taxpayers
+      parameters:
+        - name: lga_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GapAnalysis"
+
+  /multilateral/verify:
+    get:
+      summary: Signed aggregate compliance metrics (public)
+      security: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MultilateralReport"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    IngestRequest:
+      type: object
+      required: [lga_id, bounding_box]
+      properties:
+        lga_id: { type: string, example: NGA025012 }
+        bounding_box:
+          type: array
+          items: { type: number }
+          example: [3.3792, 6.5244, 3.4000, 6.5500]
+        source: { type: string, example: Sentinel-2 }
+        resolution_meters: { type: number, example: 1.0 }
+
+    GapAnalysis:
+      type: object
+      properties:
+        lga_id: { type: string }
+        total_detected_buildings: { type: integer }
+        registered_tax_payers: { type: integer }
+        unregistered_gap: { type: integer }
+        estimated_annual_revenue_gap_ngn: { type: number }
+        compliance_percentage: { type: number }
+
+    MultilateralReport:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        issuing_authority: { type: string }
+        verified_subnational_entity: { type: string }
+        metrics:
+          type: object
+          properties:
+            property_formalization_index: { type: number }
+            digitized_cadastral_records: { type: integer }
+            igr_growth_rate_yoy: { type: number }
+        signature_hash: { type: string }

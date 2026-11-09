@@ -1,0 +1,22 @@
+name: srave_field_agent
+description: SRAVE offline-first field agent app for property ground-truthing.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.1
+  sqflite: ^2.3.3
+  path_provider: ^2.1.3
+  mapbox_gl: ^0.16.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

@@ -1,20 +1,34 @@
-# Internal docs — not for public repo
+# Internal docs — never pushed
 internal/
 
-# Original working drafts
-system_architecture_technical_blueprint.md
-core_api_integration_specification.md
-data_privacy_security_framework.md
-devops_infrastructure_runbook.md
-digital_public_goods_dpg_compliance_guide.md
-go_to_market_grant_strategy.md
-doc.md
-
-# Environment & secrets
+# Secrets
 .env
 *.key
 *.pem
 secrets/
+gee_key.json
+
+# Go
+*/vendor/
+*/bin/
+*.exe
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.apk
+*.ipa
+
+# Docker
+*.log
 
 # OS
 .DS_Store
