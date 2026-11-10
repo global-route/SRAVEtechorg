@@ -14,7 +14,17 @@ class ApiService {
       headers: {'Authorization': 'Bearer $token'},
     );
     if (res.statusCode != 200) throw Exception('Failed to load assignments');
-    final List data = jsonDecode(res.body) as List;
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final List data = body['assignments'] as List;
     return data.map((e) => Building.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> verifyBuilding(int buildingId, Map<String, dynamic> payload) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/field/buildings/$buildingId/verify'),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+      body: jsonEncode(payload),
+    );
+    if (res.statusCode != 200) throw Exception('Verify failed: ${res.statusCode}');
   }
 }
