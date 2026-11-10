@@ -36,13 +36,28 @@ A dedicated OpenAPI 3.0 endpoint packages anonymized compliance metrics — prop
 | Layer | Stack |
 |---|---|
 | Geospatial & Remote Sensing | Google Earth Engine, Sentinel-2, PlanetScope, GeoPandas, Rasterio |
-| AI / Computer Vision | SAM, YOLOv8, PyTorch, FastAPI |
-| Backend API | Go (Fiber/Gin), PostgreSQL + PostGIS, Redis |
-| Mobile (Field Agent) | Flutter, SQLite (offline-first), Mapbox GL JS |
+| AI / Computer Vision | Python, PyTorch, YOLOv8, Segment Anything, Rasterio, GeoPandas |
+| Backend API | Python, FastAPI, PostgreSQL + PostGIS, Redis |
+| Mobile (Field Agent) | Flutter, SQLite (offline-first), Mapbox Flutter plugin |
 | Billing & Payments | WhatsApp Business Cloud API, Flutterwave, Paystack |
 | Multilateral Reporting | OpenAPI 3.0, JSON-LD, OCDS |
-| Infrastructure | Hetzner VPS, Coolify/Dokploy, Docker, K3s, GitHub Actions |
+| Infrastructure | Docker Compose, Coolify webhooks, GitHub Actions, optional K3s manifests |
 | Security | TLS 1.3, mTLS, OAuth 2.0, JWT, AES-256, RBAC |
+
+### Deployment and dependencies
+
+Coolify is the self-hosted deployment and operations platform, not a runtime
+dependency of SRAVE. The application dependencies provide the APIs, database
+access, geospatial processing, background-task framework, payment integrations,
+and voice generation; Coolify builds or deploys the containers and manages
+deployment settings. See the [architecture overview](docs/architecture-overview.md)
+and [Coolify deployment notes](infrastructure/coolify/deploy-hooks.md) for the
+current deployment workflow and known setup gaps.
+
+The spatial and voice services declare large AI model dependencies. Model
+checkpoints are expected in persistent `/models` volumes and are not included
+in the repository. GPU availability, model downloads, and service resource
+limits must be configured for the deployment environment.
 
 ---
 

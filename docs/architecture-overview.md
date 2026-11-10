@@ -38,22 +38,57 @@ SRAVE is composed of five independently deployable Python services behind a sing
 | Service | Language | Port | Responsibility |
 |---|---|---|---|
 | `api` | Python (FastAPI) | 8080 | Auth, JWT/RBAC, gap analysis, field routing, audit ledger |
-| `spatial-worker` | Python (FastAPI + Celery) | 8001 | GEE imagery pull, SAM+YOLOv8 footprint extraction, change detection |
-| `billing-worker` | Python (FastAPI + Celery) | 8002 | WhatsApp notices, Flutterwave/Paystack payment links |
+| `spatial-worker` | Python (FastAPI; Celery task definitions) | 8001 | GEE imagery pull, YOLOv8+SAM footprint extraction |
+| `billing-worker` | Python (FastAPI) | 8002 | WhatsApp notices, Flutterwave/Paystack payment links |
 | `multilateral-api` | Python (FastAPI) | 8003 | SHA-256 signed compliance metrics for World Bank / UN-Habitat |
 | `voice-service` | Python (FastAPI) | 8004 | MMS TTS voice notices in 5 Nigerian languages |
 | `field-agent-app` | Flutter | — | Offline-first mobile app for ground-truthing |
 
-## Shared Dependencies
+## Dependency roles
 
-All Python services extend `requirements-base.txt` at the repo root:
-- `fastapi`, `uvicorn` — API framework
-- `asyncpg` — async PostgreSQL + PostGIS
-- `redis[asyncio]` — job queue and caching
-- `httpx` — async internal service calls
-- `python-jose[cryptography]` — JWT auth
-- `pydantic v2` — request/response validation
-- `apscheduler` — cron jobs (daily audit snapshot)
+The Python services reference `requirements-base.txt` from their local
+`requirements.txt` files, then add service-specific packages:
+
+| Dependencies | Capability |
+|---|---|
+| FastAPI, Uvicorn, Pydantic | HTTP APIs, request validation, and serving |
+| asyncpg, Redis, httpx | PostgreSQL/PostGIS access, cache/job state, and service/provider calls |
+| python-jose, cryptography | JWT handling and cryptographic signing |
+| Celery | Background task definitions and queueing (spatial service) |
+| Earth Engine API, Rasterio, GeoPandas, Shapely | Imagery access and raster/vector geospatial processing |
+| PyTorch, Ultralytics, Segment Anything | Declared inference stack for building detection |
+| Transformers, SoundFile, pydub, FFmpeg | Text-to-speech inference and audio conversion |
+| Flutter packages | Offline SQLite storage, networking, maps, camera/GPS, secure storage, and TFLite |
+
+These are capabilities the declared packages support, not guarantees that each
+feature is production-ready. In particular, model checkpoint files are not
+stored in the repository; the spatial and voice services expect model files or
+caches on `/models`.
+
+## Deployment status and optimization
+
+- The Compose and GitHub Actions Docker builds use each service directory as
+  their build context. Service requirements include `../../requirements-base.txt`,
+  which is outside that context. As configured, builds that install these
+  requirements cannot access the shared file. Build from the repository root
+  with each service's Dockerfile, or adjust the requirements/context layout.
+- The spatial code defines Celery tasks, but Compose starts `spatial-worker`
+  using only its Uvicorn command; it does not start a Celery worker process.
+  Add a separate worker process that imports/registers both ingestion and AI
+  task modules before relying on queued jobs.
+- Reduce image size and build time by separating shared runtime packages from
+  service-specific dependencies and pinning transitive versions. Use a
+  CPU-appropriate PyTorch wheel where GPUs are unavailable.
+- Keep inference isolated from request-serving processes, persist model caches,
+  and set memory/CPU/GPU limits based on measured workloads. Avoid preloading
+  every voice model when only a subset is needed.
+- For production, keep PostgreSQL and Redis on private networks rather than
+  publishing their ports, add dependency health checks/readiness handling, and
+  configure database backups and persistent storage.
+- Coolify is a deployment/operations layer, not an SRAVE runtime dependency.
+  The current GitHub Actions workflow builds and pushes service images to GHCR,
+  then calls service-specific Coolify webhooks. See
+  [Coolify deployment notes](../infrastructure/coolify/deploy-hooks.md).
 
 ## Data Flow
 
