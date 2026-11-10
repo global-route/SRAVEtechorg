@@ -26,28 +26,28 @@ curl --fail-with-body --request POST "$COOLIFY_WEBHOOK_API"
 
 ## Known issues (tracked in [sprint-10.md](../docs/sprint-10.md))
 
-### Build context (tasks A1–A3) — OPEN
+### Build context (tasks A1–A3) — RESOLVED
 
-`deploy.yml` and `docker-compose.yml` set each service subdirectory as the
-Docker build context. Each service `requirements.txt` references
-`../../requirements-base.txt`, which is outside that context. Standalone
-`docker build` and the GitHub Actions deploy job will fail with a `COPY`
-path error until tasks A1–A3 are completed.
+All 5 Dockerfiles now copy `requirements-base.txt` from the repo root before
+the service-specific `requirements.txt`. `deploy.yml` and `docker-compose.yml`
+both use the repo root as build context with an explicit `dockerfile:` path.
+`docker build -f services/api/Dockerfile .` from the repo root now succeeds.
 
-**Workaround:** `make up` works locally because Compose uses bind mounts, not
-a restricted build context.
+### Celery workers (tasks B1–B2) — RESOLVED
 
-### Celery workers (tasks B1–B2) — OPEN
+`spatial-celery` and `billing-celery` service blocks are now defined in
+`docker-compose.yml`. Each reuses the same image as its parent service but
+runs a Celery worker command instead of uvicorn.
 
-`docker-compose.yml` starts `spatial-worker` and `billing-worker` with
-`uvicorn` only. No Celery worker process consumes from Redis, so queued
-ingestion and extraction tasks never execute.
+For Coolify, create a separate resource for each worker container pointing
+to the same GHCR image with the appropriate `command` override:
 
-**Impact:** `POST /api/v1/spatial/ingest` returns 202 and queues a job, but
-the job stays in `queued` state indefinitely.
+| Container | Command |
+|---|---|
+| `spatial-celery` | `celery -A ingestion.tasks.celery_app worker --loglevel=info -Q celery --concurrency=2` |
+| `billing-celery` | `celery -A routers.assess worker --loglevel=info --concurrency=2` |
 
-**Fix (phase 10):** Add `spatial-celery` and `billing-celery` service blocks
-to `docker-compose.yml` and corresponding Coolify resources.
+Both workers require `REDIS_URL` and DB env vars from the shared `.env`.
 
 ## Image tags
 

@@ -2,21 +2,51 @@ openapi: "3.0.3"
 info:
   title: SRAVE API
   version: "1.0.0"
-  description: Spatial Revenue & Asset Verification Engine — public API reference.
+  description: Spatial Revenue & Asset Verification Engine — full API reference.
   contact:
     name: Atlantic Tech Innovations
     url: https://github.com/global-route/SRAVEtechorg
 
 servers:
   - url: https://api.srave.io/api/v1
+    description: Production
+  - url: http://localhost:8080/api/v1
+    description: Local dev (srave-api)
 
 security:
   - bearerAuth: []
 
 paths:
+
+  # ── Auth ────────────────────────────────────────────────────────────────────
+
+  /auth/token:
+    post:
+      summary: Issue a JWT access token
+      security: []
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+      responses:
+        "200":
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          description: Invalid credentials
+
+  # ── Spatial ─────────────────────────────────────────────────────────────────
+
   /spatial/ingest:
     post:
       summary: Trigger satellite imagery ingestion and AI footprint extraction
+      tags: [spatial]
       requestBody:
         required: true
         content:
@@ -24,34 +54,411 @@ paths:
             schema:
               $ref: "#/components/schemas/IngestRequest"
       responses:
-        "202": { description: Job queued }
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobQueued"
         "401": { description: Unauthorized }
+        "422": { description: Invalid bounding box }
+
+  /spatial/ingest/{job_id}:
+    get:
+      summary: Poll ingestion job status
+      tags: [spatial]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatus"
+
+  /spatial/lga/{lga_id}/changes:
+    get:
+      summary: Structural changes between two scan dates
+      tags: [spatial]
+      parameters:
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
+        - { name: from_scan_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to_scan_date, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeDetectionResult"
+
+  # ── Audit ────────────────────────────────────────────────────────────────────
 
   /audit/lga/{lga_id}/gap-analysis:
     get:
       summary: Revenue gap between detected buildings and registered taxpayers
+      tags: [audit]
       parameters:
-        - name: lga_id
-          in: path
-          required: true
-          schema: { type: string }
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
       responses:
         "200":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GapAnalysis"
+        "404": { description: LGA not found }
+
+  /audit/lga/{lga_id}/buildings:
+    get:
+      summary: Paginated list of detected buildings for an LGA
+      tags: [audit]
+      parameters:
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: verified, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lga_id: { type: string }
+                  buildings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BuildingSummary"
+
+  /audit/lga/{lga_id}/collections:
+    get:
+      summary: Daily collection totals for the last 30 days
+      tags: [audit]
+      parameters:
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DailyCollection"
+
+  /audit/snapshot:
+    post:
+      summary: Append a SHA-256 chained audit snapshot (admin only)
+      tags: [audit]
+      parameters:
+        - { name: lga_id, in: query, schema: { type: string } }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditSnapshot"
+
+  /audit/snapshots/{lga_id}:
+    get:
+      summary: All audit snapshots for an LGA in chronological order
+      tags: [audit]
+      parameters:
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditSnapshot"
+
+  /audit/snapshots/{lga_id}/verify-chain:
+    get:
+      summary: Verify integrity of the SHA-256 audit chain
+      tags: [audit]
+      parameters:
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChainVerification"
+
+  # ── Field ────────────────────────────────────────────────────────────────────
+
+  /field/assignments/{agent_id}:
+    get:
+      summary: Unverified buildings assigned to a field agent (up to 50)
+      tags: [field]
+      parameters:
+        - { name: agent_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent_id: { type: string }
+                  assignments:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BuildingSummary"
+
+  /field/buildings/{building_id}/verify:
+    patch:
+      summary: Submit field verification result for a building
+      tags: [field]
+      parameters:
+        - { name: building_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyPayload"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  building_id: { type: integer }
+                  verified: { type: boolean }
+
+  # ── Billing ──────────────────────────────────────────────────────────────────
+
+  /billing/assess/{building_id}:
+    post:
+      summary: Create tax assessment, generate payment link, send WhatsApp notice
+      tags: [billing]
+      parameters:
+        - { name: building_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssessmentResult"
+        "404": { description: Verified building not found }
+        "422": { description: No phone number on record }
+
+  /billing/assessment/{assessment_id}:
+    get:
+      summary: Retrieve a single tax assessment
+      tags: [billing]
+      parameters:
+        - { name: assessment_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxAssessment"
+        "404": { description: Assessment not found }
+
+  /billing/lga/{lga_id}/assessments:
+    get:
+      summary: Paginated assessments for an LGA
+      tags: [billing]
+      parameters:
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lga_id: { type: string }
+                  assessments:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TaxAssessment"
+
+  /billing/voice-notice/{assessment_id}:
+    post:
+      summary: Send a multilingual voice notice for an assessment
+      tags: [billing]
+      parameters:
+        - { name: assessment_id, in: path, required: true, schema: { type: integer } }
+        - { name: language, in: query, schema: { type: string, default: yoruba, enum: [yoruba, igbo, hausa, urhobo, pidgin] } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assessment_id: { type: integer }
+                  voice_status: { type: string }
+                  language: { type: string }
+
+  /billing/webhook/whatsapp:
+    post:
+      summary: WhatsApp Business Cloud delivery status webhook
+      security: []
+      tags: [webhooks]
+      responses:
+        "200": { description: Processed }
+        "403": { description: Invalid HMAC signature }
+
+  /billing/webhook/flutterwave:
+    post:
+      summary: Flutterwave payment confirmation webhook
+      security: []
+      tags: [webhooks]
+      responses:
+        "200": { description: Processed }
+        "403": { description: Invalid signature }
+
+  /billing/webhook/paystack:
+    post:
+      summary: Paystack payment confirmation webhook
+      security: []
+      tags: [webhooks]
+      responses:
+        "200": { description: Processed }
+        "403": { description: Invalid HMAC signature }
+
+  # ── Admin ────────────────────────────────────────────────────────────────────
+
+  /admin/tax-rates/{lga_id}:
+    get:
+      summary: Get annual tax rates for an LGA
+      tags: [admin]
+      parameters:
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxRatesResponse"
+    put:
+      summary: Update annual tax rates for an LGA
+      tags: [admin]
+      parameters:
+        - { name: lga_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaxRates"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxRatesResponse"
+
+  # ── Privacy (NDPA / GDPR) ────────────────────────────────────────────────────
+
+  /privacy/dsar/{phone}:
+    get:
+      summary: Data Subject Access Request — retrieve all records for a phone number
+      tags: [privacy]
+      parameters:
+        - { name: phone, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DSARResponse"
+    delete:
+      summary: Right to erasure — nullify PII for a phone number
+      tags: [privacy]
+      parameters:
+        - { name: phone, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phone: { type: string }
+                  status: { type: string, example: pii_removed }
+
+  # ── Multilateral (served by multilateral-api on :8003) ───────────────────────
 
   /multilateral/verify:
     get:
-      summary: Signed aggregate compliance metrics (public)
+      summary: SHA-256 signed aggregate compliance metrics (public, no auth)
       security: []
+      tags: [multilateral]
+      parameters:
+        - { name: lga_id, in: query, schema: { type: string } }
       responses:
         "200":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MultilateralReport"
+
+  /multilateral/export/ocds:
+    get:
+      summary: OCDS-formatted assessment export for an LGA
+      tags: [multilateral]
+      parameters:
+        - { name: lga_id, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OCDSRecord"
+
+  /.well-known/signing-key.pub:
+    get:
+      summary: Ed25519 public key used to verify multilateral report signatures
+      security: []
+      tags: [multilateral]
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  public_key: { type: string }
+
+  # ── Voice (served by voice-service on :8004) ─────────────────────────────────
+
+  /voice/notice/{assessment_id}:
+    post:
+      summary: Generate and deliver a multilingual TTS voice notice via WhatsApp
+      tags: [voice]
+      parameters:
+        - { name: assessment_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoiceRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assessment_id: { type: integer }
+                  voice_status: { type: string, example: dispatched }
+                  language: { type: string }
+        "422": { description: Unsupported language }
+
+# ── Components ────────────────────────────────────────────────────────────────
 
 components:
   securitySchemes:
@@ -61,6 +468,21 @@ components:
       bearerFormat: JWT
 
   schemas:
+
+    TokenRequest:
+      type: object
+      required: [client_id, client_secret]
+      properties:
+        client_id: { type: string }
+        client_secret: { type: string }
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        expires_in: { type: integer, example: 3600 }
+        token_type: { type: string, example: Bearer }
+
     IngestRequest:
       type: object
       required: [lga_id, bounding_box]
@@ -69,9 +491,42 @@ components:
         bounding_box:
           type: array
           items: { type: number }
+          minItems: 4
+          maxItems: 4
           example: [3.3792, 6.5244, 3.4000, 6.5500]
         source: { type: string, example: Sentinel-2 }
         resolution_meters: { type: number, example: 1.0 }
+
+    JobQueued:
+      type: object
+      properties:
+        job_id: { type: string, format: uuid }
+        status: { type: string, example: queued }
+        lga_id: { type: string }
+        estimated_completion_minutes: { type: integer, example: 12 }
+
+    JobStatus:
+      type: object
+      properties:
+        job_id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, processing, imagery_ready, extracting, complete, failed] }
+        lga_id: { type: string }
+        buildings_detected: { type: integer }
+        error: { type: string }
+
+    ChangeDetectionResult:
+      type: object
+      properties:
+        lga_id: { type: string }
+        period:
+          type: object
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+        new_structures: { type: integer }
+        modified_structures: { type: integer }
+        demolished_structures: { type: integer }
+        flagged_for_field_review: { type: integer }
 
     GapAnalysis:
       type: object
@@ -83,9 +538,116 @@ components:
         estimated_annual_revenue_gap_ngn: { type: number }
         compliance_percentage: { type: number }
 
+    BuildingSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        lga_id: { type: string }
+        confidence_score: { type: number }
+        property_type: { type: string, enum: [residential_low, residential_high, commercial, industrial] }
+        verified: { type: boolean }
+        scan_date: { type: string, format: date-time }
+
+    DailyCollection:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        total_ngn: { type: number }
+        paid_count: { type: integer }
+
+    AuditSnapshot:
+      type: object
+      properties:
+        lga_id: { type: string }
+        snapshot_date: { type: string, format: date }
+        total_buildings: { type: integer }
+        verified_buildings: { type: integer }
+        total_assessments: { type: integer }
+        total_collected_ngn: { type: number }
+        ledger_entry_hash: { type: string }
+        previous_hash: { type: string }
+        immutable: { type: boolean }
+
+    ChainVerification:
+      type: object
+      properties:
+        chain_valid: { type: boolean }
+        snapshots_checked: { type: integer }
+
+    VerifyPayload:
+      type: object
+      required: [verified, owner_phone]
+      properties:
+        verified: { type: boolean }
+        owner_phone: { type: string, example: "2348012345678" }
+        photo_url: { type: string, format: uri }
+        notes: { type: string }
+        property_type: { type: string, enum: [residential_low, residential_high, commercial, industrial] }
+        owner_language: { type: string, enum: [yoruba, igbo, hausa, urhobo, pidgin] }
+
+    TaxAssessment:
+      type: object
+      properties:
+        id: { type: integer }
+        building_id: { type: integer }
+        owner_phone: { type: string }
+        amount_due: { type: number }
+        wa_status: { type: string, enum: [pending, delivered, read, paid] }
+        payment_ref: { type: string }
+        assessed_at: { type: string, format: date-time }
+
+    AssessmentResult:
+      type: object
+      properties:
+        assessment_id: { type: integer }
+        building_id: { type: integer }
+        amount_due_ngn: { type: number }
+        wa_status: { type: string }
+        payment_link: { type: string, format: uri }
+
+    TaxRates:
+      type: object
+      properties:
+        residential_low: { type: number, example: 30000 }
+        residential_high: { type: number, example: 80000 }
+        commercial: { type: number, example: 200000 }
+        industrial: { type: number, example: 500000 }
+
+    TaxRatesResponse:
+      type: object
+      properties:
+        lga_id: { type: string }
+        rates:
+          type: object
+          additionalProperties: { type: number }
+
+    DSARResponse:
+      type: object
+      properties:
+        phone: { type: string }
+        tax_roll:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              lga_id: { type: string }
+              owner_language: { type: string }
+              registered_at: { type: string, format: date-time }
+        assessments:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              amount_due: { type: number }
+              wa_status: { type: string }
+              assessed_at: { type: string, format: date-time }
+
     MultilateralReport:
       type: object
       properties:
+        "@context": { type: object }
         timestamp: { type: string, format: date-time }
         issuing_authority: { type: string }
         verified_subnational_entity: { type: string }
@@ -95,4 +657,29 @@ components:
             property_formalization_index: { type: number }
             digitized_cadastral_records: { type: integer }
             igr_growth_rate_yoy: { type: number }
+        chain_head_hash: { type: string }
         signature_hash: { type: string }
+        public_key_url: { type: string, format: uri }
+
+    OCDSRecord:
+      type: object
+      properties:
+        ocid: { type: string, example: ocds-srave-NGA025012-42 }
+        amount:
+          type: object
+          properties:
+            amount: { type: number }
+            currency: { type: string, example: NGN }
+        status: { type: string }
+        date: { type: string, format: date-time }
+        property_type: { type: string }
+
+    VoiceRequest:
+      type: object
+      properties:
+        language: { type: string, enum: [yoruba, igbo, hausa, urhobo, pidgin], default: yoruba }
+        owner_phone: { type: string }
+        owner_name: { type: string }
+        address: { type: string }
+        amount_due_ngn: { type: number }
+        payment_link: { type: string, format: uri }

@@ -2,39 +2,68 @@ version: "3.8"
 
 services:
   srave-api:
-    build: ./services/api
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
     ports: ["8080:8080"]
     env_file: .env
     depends_on: [postgres-db, redis-cache]
     restart: unless-stopped
 
   spatial-worker:
-    build: ./services/spatial-worker
+    build:
+      context: .
+      dockerfile: services/spatial-worker/Dockerfile
     ports: ["8001:8001"]
     env_file: .env
     depends_on: [postgres-db, redis-cache]
     volumes: [srave-model-weights:/models]
     restart: unless-stopped
 
+  spatial-celery:
+    build:
+      context: .
+      dockerfile: services/spatial-worker/Dockerfile
+    command: celery -A ingestion.tasks.celery_app worker --loglevel=info -Q celery --concurrency=2
+    env_file: .env
+    depends_on: [postgres-db, redis-cache]
+    volumes: [srave-model-weights:/models]
+    restart: unless-stopped
+
   billing-worker:
-    build: ./services/billing-worker
+    build:
+      context: .
+      dockerfile: services/billing-worker/Dockerfile
     ports: ["8002:8002"]
     env_file: .env
-    depends_on: [postgres-db]
+    depends_on: [postgres-db, redis-cache]
+    restart: unless-stopped
+
+  billing-celery:
+    build:
+      context: .
+      dockerfile: services/billing-worker/Dockerfile
+    command: celery -A routers.assess worker --loglevel=info --concurrency=2
+    env_file: .env
+    depends_on: [postgres-db, redis-cache]
     restart: unless-stopped
 
   multilateral-api:
-    build: ./services/multilateral-api
+    build:
+      context: .
+      dockerfile: services/multilateral-api/Dockerfile
     ports: ["8003:8003"]
     env_file: .env
     depends_on: [postgres-db]
     restart: unless-stopped
 
   voice-service:
-    build: ./services/voice-service
+    build:
+      context: .
+      dockerfile: services/voice-service/Dockerfile
     ports: ["8004:8004"]
     env_file: .env
-    depends_on: [billing-worker]
+    depends_on: [postgres-db, billing-worker]
     volumes: [srave-voice-models:/models]
     restart: unless-stopped
 

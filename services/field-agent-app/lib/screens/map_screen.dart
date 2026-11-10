@@ -16,7 +16,8 @@ const _agentToken = String.fromEnvironment('AGENT_TOKEN');
 const _agentId = String.fromEnvironment('AGENT_ID', defaultValue: 'agent_001');
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final ApiService? apiService;
+  const MapScreen({super.key, this.apiService});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -26,7 +27,7 @@ class _MapScreenState extends State<MapScreen> {
   MapboxMapController? _mapController;
   late Database _db;
   final _classifier = ClassifierService();
-  final _api = ApiService(baseUrl: _apiBase, token: _agentToken);
+  late final ApiService _api;
   List<Building> _buildings = [];
   bool _loading = true;
 
@@ -38,6 +39,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _init() async {
     _db = await DbService.instance;
+    _api = widget.apiService ?? ApiService(baseUrl: _apiBase, token: _agentToken);
     await _classifier.load();
     await _loadAssignments();
     SyncService(db: _db, baseUrl: _apiBase, token: _agentToken).startListening();

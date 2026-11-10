@@ -1,63 +1,80 @@
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def client():
     from main import app
-    return TestClient(app)
+
+    mock_pool = MagicMock()
+    app.state.pool = mock_pool
+    return TestClient(app), mock_pool
 
 
 def test_health(client):
-    r = client.get("/health")
+    c, _ = client
+    r = c.get("/health")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
 
 
 def test_assess_building_not_found(client):
-    mock_cur = MagicMock()
-    mock_cur.fetchone.return_value = None
-    mock_conn = MagicMock()
-    mock_conn.cursor.return_value = mock_cur
+    c, pool = client
+    pool.fetchrow = AsyncMock(return_value=None)
 
-    with patch("routers.assess._get_conn", return_value=mock_conn):
-        r = client.post("/assess/9999")
+    r = c.post("/assess/9999")
     assert r.status_code == 404
 
 
 def test_assess_no_phone(client):
-    mock_cur = MagicMock()
-    mock_cur.fetchone.side_effect = [
-        {"lga_id": "NGA025012", "property_type": "residential_low"},  # building
-        {"owner_phone": None, "owner_name": None, "address": None, "owner_language": None},  # owner
-    ]
-    mock_conn = MagicMock()
-    mock_conn.cursor.return_value = mock_cur
+    c, pool = client
+    pool.fetchrow = AsyncMock(side_effect=[
+        {"lga_id": "NGA025012", "property_type": "residential_low"},
+        {"owner_phone": None, "owner_name": None, "address": None, "owner_language": None},
+    ])
 
-    with patch("routers.assess._get_conn", return_value=mock_conn):
-        r = client.post("/assess/1")
+    r = c.post("/assess/1")
     assert r.status_code == 422
 
 
 def test_assess_success(client):
-    mock_cur = MagicMock()
-    mock_cur.fetchone.side_effect = [
+    c, pool = client
+    pool.fetchrow = AsyncMock(side_effect=[
         {"lga_id": "NGA025012", "property_type": "residential_low"},
         {"owner_phone": "2348012345678", "owner_name": "Test Owner", "address": "12 Test St", "owner_language": "yoruba"},
         {"annual_rate_ngn": 30000.0},
-        {"id": 42},
-    ]
-    mock_conn = MagicMock()
-    mock_conn.cursor.return_value = mock_cur
+    ])
+    pool.fetchval = AsyncMock(return_value=42)
+    pool.execute = AsyncMock()
 
-    with patch("routers.assess._get_conn", return_value=mock_conn), \
-         patch("routers.assess.flw_link", new_callable=AsyncMock, return_value="https://pay.flw.co/test"), \
+    from unittest.mock import patch
+    with patch("routers.assess.flw_link", new_callable=AsyncMock, return_value="https://pay.flw.co/test"), \
          patch("routers.assess.send_demand_notice", new_callable=AsyncMock):
-        r = client.post("/assess/1")
+        r = c.post("/assess/1")
 
     assert r.status_code == 201
     data = r.json()
     assert data["assessment_id"] == 42
     assert data["amount_due_ngn"] == 30000.0
-    assert "payment_link" in data
+    assert data["payment_link"] == "https://pay.flw.co/test"
+
+
+def test_assess_paystack_fallback(client):
+    c, pool = client
+    pool.fetchrow = AsyncMock(side_effect=[
+        {"lga_id": "NGA025012", "property_type": "commercial"},
+        {"owner_phone": "2348099999999", "owner_name": "Biz Owner", "address": "5 Market Rd", "owner_language": "igbo"},
+        {"annual_rate_ngn": 200000.0},
+    ])
+    pool.fetchval = AsyncMock(return_value=7)
+    pool.execute = AsyncMock()
+
+    from unittest.mock import patch
+    with patch("routers.assess.flw_link", new_callable=AsyncMock, side_effect=Exception("flw down")), \
+         patch("routers.assess.psk_link", new_callable=AsyncMock, return_value="https://paystack.co/test"), \
+         patch("routers.assess.send_demand_notice", new_callable=AsyncMock):
+        r = c.post("/assess/2")
+
+    assert r.status_code == 201
+    assert r.json()["payment_link"] == "https://paystack.co/test"

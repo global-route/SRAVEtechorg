@@ -290,21 +290,21 @@ Add `test-flutter` to required checks once E1/E2 are merged.
 
 ## Sprint Summary
 
-| ID | Track | Effort | Blocker? |
-|---|---|---|---|
-| A1 | Fix Dockerfiles (5 files) | S | Yes — deploy broken without this |
-| A2 | Fix `deploy.yml` build context | XS | Yes |
-| A3 | Fix `docker-compose.yml` build context | XS | Yes |
-| B1 | Add `spatial-celery` to Compose | XS | Yes — spatial pipeline dead without this |
-| B2 | Add `billing-celery` to Compose | XS | No |
-| B3 | Update `deploy-hooks.md` | XS | No |
-| C1 | Migrate billing-worker to asyncpg | M | No |
-| D1 | Expand `openapi.yaml` | M | No |
-| E1 | Add `flutter test` CI job | XS | No |
-| E2 | Write MapScreen + SyncService tests | M | No |
-| F1 | voice-service DB lookup | S | No |
-| G1 | Enable branch protection (manual) | — | No |
+| ID | Track | Effort | Blocker? | Status |
+|---|---|---|---|---|
+| A1 | Fix Dockerfiles (5 files) | S | Yes | ✅ Done |
+| A2 | Fix `deploy.yml` build context | XS | Yes | ✅ Done |
+| A3 | Fix `docker-compose.yml` build context | XS | Yes | ✅ Done |
+| B1 | Add `spatial-celery` to Compose | XS | Yes | ✅ Done |
+| B2 | Add `billing-celery` to Compose | XS | No | ✅ Done |
+| B3 | Update `deploy-hooks.md` | XS | No | ✅ Done |
+| C1 | Migrate billing-worker to asyncpg | M | No | ✅ Done |
+| D1 | Expand `openapi.yaml` | M | No | ✅ Done |
+| E1 | Add `flutter test` CI job | XS | No | ✅ Done |
+| E2 | Write MapScreen + SyncService tests | M | No | ✅ Done |
+| F1 | voice-service DB lookup | S | No | ✅ Done |
+| G1 | Enable branch protection (manual) | — | No | ⏳ Manual — do this now |
 
 **Effort key:** XS < 30 min · S < 2 h · M < 4 h
 
-**Recommended execution order:** A1 → A2 → A3 → B1 → B2 → C1 → F1 → D1 → E1 → E2 → B3/G1
+**All code tasks complete.** Only G1 remains — enable branch protection manually in GitHub Settings.

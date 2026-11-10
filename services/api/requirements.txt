@@ -1,2 +1,1 @@
--r ../../requirements-base.txt
 celery==5.4.0
