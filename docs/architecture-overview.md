@@ -98,3 +98,29 @@ caches on `/models`.
 4. `billing-worker` sends WhatsApp demand notice + Flutterwave payment link → updates `wa_status`
 5. `voice-service` generates MMS TTS audio in owner's language → delivers via WhatsApp voice note
 6. `GET /api/v1/multilateral/verify` → SHA-256 chained signed metrics → World Bank / UN-Habitat
+
+---
+
+## Completed Phases
+
+| Phase | Commit | What shipped |
+|---|---|---|
+| 0 | `06699c7` | DB/Redis lifespan wiring, health checks, auth tests, migrations 003–004, K3s manifests, Nginx |
+| 1 | `ce68e2a` | GEE client, YOLOv8+SAM detector, Celery ingest/extraction tasks, PostGIS writer, change detector |
+| 2–6 | `23df9c6` | Gap engine, billing DB+providers (Paystack, Flutterwave, WhatsApp), daily snapshot cron, Flutter SQLite+sync+classifier, multilateral metrics+OCDS, voice MMS TTS |
+| 7 | `352d612` | Security headers middleware, request ID middleware, migration 005 (sync_conflicts), contributing.md |
+| 8 | `36eb893` | `ai/router.py` extraction endpoint (was stub), MapScreen Mapbox GL + verify flow, `api_service.dart` response parsing fix |
+| 9 | `HEAD` | Smoke tests for all 4 Python services, CI workflow fixed (per-service jobs, path fix, no `continue-on-error`), docs updated |
+
+---
+
+## Known Gaps / Next Tasks
+
+| Priority | Area | Detail |
+|---|---|---|
+| High | Docker build context | `requirements.txt` files reference `../../requirements-base.txt` which is outside each service's build context. Fix: set repo root as build context in `deploy.yml` and `docker-compose.yml`, pass `dockerfile: services/<svc>/Dockerfile`. |
+| High | Celery worker process | `docker-compose.yml` starts each service with `uvicorn` only. Celery workers for `spatial-worker` and `billing-worker` need a separate `command:` entry or a second service block. |
+| Medium | `billing-worker` async | `routers/assess.py` uses sync `psycopg2`. Should migrate to `asyncpg` for consistency and to avoid blocking the event loop. |
+| Medium | Flutter integration tests | `map_screen.dart` and `sync_service.dart` have no widget/unit tests. Add `flutter test` to CI. |
+| Low | `voice-service` DB access | `POST /voice/notice/{id}` accepts all fields in the request body but doesn't look up the assessment from DB — the caller (`billing.py`) must pass all fields. Consider a DB lookup inside the voice service for resilience. |
+| Low | OpenAPI completeness | `docs/openapi.yaml` only documents 3 of ~20 endpoints. Expand or auto-generate from FastAPI's `/openapi.json`. |
