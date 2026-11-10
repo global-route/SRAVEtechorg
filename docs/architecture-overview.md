@@ -110,17 +110,22 @@ caches on `/models`.
 | 2–6 | `23df9c6` | Gap engine, billing DB+providers (Paystack, Flutterwave, WhatsApp), daily snapshot cron, Flutter SQLite+sync+classifier, multilateral metrics+OCDS, voice MMS TTS |
 | 7 | `352d612` | Security headers middleware, request ID middleware, migration 005 (sync_conflicts), contributing.md |
 | 8 | `36eb893` | `ai/router.py` extraction endpoint (was stub), MapScreen Mapbox GL + verify flow, `api_service.dart` response parsing fix |
-| 9 | `HEAD` | Smoke tests for all 4 Python services, CI workflow fixed (per-service jobs, path fix, no `continue-on-error`), docs updated |
+| 9 | `4ca4ccc` | Smoke tests for all 4 Python services, CI workflow fixed (per-service jobs, path fix, no `continue-on-error`), docs updated |
 
 ---
 
-## Known Gaps / Next Tasks
+## Phase 10 — Infrastructure Hardening & Deploy Readiness
 
-| Priority | Area | Detail |
-|---|---|---|
-| High | Docker build context | `requirements.txt` files reference `../../requirements-base.txt` which is outside each service's build context. Fix: set repo root as build context in `deploy.yml` and `docker-compose.yml`, pass `dockerfile: services/<svc>/Dockerfile`. |
-| High | Celery worker process | `docker-compose.yml` starts each service with `uvicorn` only. Celery workers for `spatial-worker` and `billing-worker` need a separate `command:` entry or a second service block. |
-| Medium | `billing-worker` async | `routers/assess.py` uses sync `psycopg2`. Should migrate to `asyncpg` for consistency and to avoid blocking the event loop. |
-| Medium | Flutter integration tests | `map_screen.dart` and `sync_service.dart` have no widget/unit tests. Add `flutter test` to CI. |
-| Low | `voice-service` DB access | `POST /voice/notice/{id}` accepts all fields in the request body but doesn't look up the assessment from DB — the caller (`billing.py`) must pass all fields. Consider a DB lookup inside the voice service for resilience. |
-| Low | OpenAPI completeness | `docs/openapi.yaml` only documents 3 of ~20 endpoints. Expand or auto-generate from FastAPI's `/openapi.json`. |
+See [docs/sprint-10.md](sprint-10.md) for the full task breakdown and sprint plan.
+
+Summary of work targeted:
+
+| Track | Tasks |
+|---|---|
+| Docker / Build | Fix build context for all 5 services; update `deploy.yml` and `docker-compose.yml` |
+| Celery | Add `spatial-celery` and `billing-celery` worker containers to Compose |
+| `billing-worker` | Migrate `routers/assess.py` from sync `psycopg2` to `asyncpg` |
+| OpenAPI | Expand `docs/openapi.yaml` to cover all ~20 endpoints |
+| Flutter CI | Add `flutter test` job to `ci.yml`; add widget tests for `MapScreen` and `SyncService` |
+| `voice-service` | Add DB lookup inside service so caller doesn't need to pass all fields |
+| Branch protection | Enable required status checks on `main` for all 5 CI jobs |
