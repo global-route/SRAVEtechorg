@@ -6,15 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import auth, spatial, audit, field, billing, admin, privacy, webhooks
-
-_pool: asyncpg.Pool | None = None
-_redis = None
+from ledger.scheduler import start_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _pool, _redis
-    _pool = await asyncpg.create_pool(
+    pool = await asyncpg.create_pool(
         host=os.getenv("DB_HOST", "postgres-db"),
         port=int(os.getenv("DB_PORT", 5432)),
         database=os.getenv("DB_NAME", "srave_prod"),
@@ -22,22 +19,18 @@ async def lifespan(app: FastAPI):
         password=os.getenv("DB_PASSWORD"),
         min_size=2, max_size=10,
     )
-    _redis = aioredis.from_url(os.getenv("REDIS_URL", "redis://redis-cache:6379"))
-    app.state.pool = _pool
-    app.state.redis = _redis
+    redis = aioredis.from_url(os.getenv("REDIS_URL", "redis://redis-cache:6379"))
+    app.state.pool = pool
+    app.state.redis = redis
+    scheduler = start_scheduler(pool)
     yield
-    await _pool.close()
-    await _redis.aclose()
+    scheduler.shutdown()
+    await pool.close()
+    await redis.aclose()
 
 
 app = FastAPI(title="SRAVE Core API", version="1.0.0", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(auth.router,     prefix="/api/v1/auth",    tags=["auth"])
 app.include_router(spatial.router,  prefix="/api/v1/spatial", tags=["spatial"])
@@ -51,13 +44,13 @@ app.include_router(webhooks.router, prefix="/api/v1/billing", tags=["webhooks"])
 
 @app.get("/health", tags=["health"])
 async def health():
-    db_status, redis_status = "ok", "ok"
+    db_ok, redis_ok = "ok", "ok"
     try:
         await app.state.pool.fetchval("SELECT 1")
     except Exception:
-        db_status = "error"
+        db_ok = "error"
     try:
         await app.state.redis.ping()
     except Exception:
-        redis_status = "error"
-    return {"status": "ok", "service": "srave-api", "db": db_status, "redis": redis_status}
+        redis_ok = "error"
+    return {"status": "ok", "service": "srave-api", "db": db_ok, "redis": redis_ok}
