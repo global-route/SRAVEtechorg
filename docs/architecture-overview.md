@@ -111,21 +111,18 @@ caches on `/models`.
 | 7 | `352d612` | Security headers middleware, request ID middleware, migration 005 (sync_conflicts), contributing.md |
 | 8 | `36eb893` | `ai/router.py` extraction endpoint (was stub), MapScreen Mapbox GL + verify flow, `api_service.dart` response parsing fix |
 | 9 | `4ca4ccc` | Smoke tests for all 4 Python services, CI workflow fixed (per-service jobs, path fix, no `continue-on-error`), docs updated |
+| 10 | `ed5c945` | Docker build context fixed (all 5 services), Celery workers wired, billing asyncpg migration, full OpenAPI spec (22 endpoints), Flutter CI + widget/unit tests, voice-service DB lookup, deploy-hooks updated |
 
 ---
 
-## Phase 10 — Infrastructure Hardening & Deploy Readiness
+## Forward Roadmap
 
-See [docs/sprint-10.md](sprint-10.md) for the full task breakdown and sprint plan.
+See [docs/roadmap.md](roadmap.md) for the full multi-phase plan (sprints 11–15).
 
-Summary of work targeted:
-
-| Track | Tasks |
+| Sprint | Theme |
 |---|---|
-| Docker / Build | Fix build context for all 5 services; update `deploy.yml` and `docker-compose.yml` |
-| Celery | Add `spatial-celery` and `billing-celery` worker containers to Compose |
-| `billing-worker` | Migrate `routers/assess.py` from sync `psycopg2` to `asyncpg` |
-| OpenAPI | Expand `docs/openapi.yaml` to cover all ~20 endpoints |
-| Flutter CI | Add `flutter test` job to `ci.yml`; add widget tests for `MapScreen` and `SyncService` |
-| `voice-service` | Add DB lookup inside service so caller doesn't need to pass all fields |
-| Branch protection | Enable required status checks on `main` for all 5 CI jobs |
+| 11 | Production Hardening — DB ports, schema gaps, photo storage, rate limits |
+| 12 | Auth & Multi-Tenancy — DB clients, token refresh, LGA-scoped JWTs, Flutter login |
+| 13 | Pilot Data & Observability — real Ogun data, structured logs, Prometheus/Grafana, DLQ |
+| 14 | Dashboard & Reporting — municipal web UI, PDF reports, payment reminders |
+| 15 | Scale & Resilience — GeoTIFF tiling, Redis cap, provider retries, K3s complete, PgBouncer |
