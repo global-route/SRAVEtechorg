@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS tax_rates;
+DROP TABLE IF EXISTS tax_roll;

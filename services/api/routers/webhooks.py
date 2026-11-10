@@ -2,26 +2,22 @@ import hashlib
 import hmac
 import os
 from fastapi import APIRouter, Request, HTTPException
-from repository.db import get_pool
 
 router = APIRouter()
 
 
 @router.post("/webhook/whatsapp")
 async def whatsapp_webhook(request: Request):
-    sig = request.headers.get("X-Hub-Signature-256", "")
     body = await request.body()
-    expected = "sha256=" + hmac.new(
-        os.getenv("WA_APP_SECRET", "").encode(), body, hashlib.sha256
-    ).hexdigest()
+    sig = request.headers.get("X-Hub-Signature-256", "")
+    expected = "sha256=" + hmac.new(os.getenv("WA_APP_SECRET", "").encode(), body, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, expected):
         raise HTTPException(status_code=403, detail="Invalid signature")
     data = await request.json()
-    # Update wa_status from delivery/read callbacks
+    pool = request.app.state.pool
     for entry in data.get("entry", []):
         for change in entry.get("changes", []):
             for status in change.get("value", {}).get("statuses", []):
-                pool = await get_pool()
                 await pool.execute(
                     "UPDATE tax_assessments SET wa_status=$1 WHERE payment_ref=$2",
                     status["status"], status["id"],
@@ -35,10 +31,9 @@ async def flutterwave_webhook(request: Request):
         raise HTTPException(status_code=403, detail="Invalid signature")
     data = await request.json()
     if data.get("event") == "charge.completed" and data["data"]["status"] == "successful":
-        pool = await get_pool()
-        await pool.execute(
-            "UPDATE tax_assessments SET wa_status='paid', payment_ref=$1 WHERE payment_ref=$2",
-            data["data"]["tx_ref"], data["data"]["tx_ref"],
+        await request.app.state.pool.execute(
+            "UPDATE tax_assessments SET wa_status='paid' WHERE payment_ref=$1",
+            data["data"]["tx_ref"],
         )
     return {"ok": True}
 
@@ -51,8 +46,7 @@ async def paystack_webhook(request: Request):
         raise HTTPException(status_code=403, detail="Invalid signature")
     data = await request.json()
     if data.get("event") == "charge.success":
-        pool = await get_pool()
-        await pool.execute(
+        await request.app.state.pool.execute(
             "UPDATE tax_assessments SET wa_status='paid' WHERE payment_ref=$1",
             data["data"]["reference"],
         )
