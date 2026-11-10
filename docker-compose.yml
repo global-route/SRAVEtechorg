@@ -2,21 +2,22 @@ version: "3.8"
 
 services:
   srave-api:
-    build: ./services/core-api
+    build: ./services/api
     ports: ["8080:8080"]
     env_file: .env
     depends_on: [postgres-db, redis-cache]
     restart: unless-stopped
 
-  spatial-ingestion:
-    build: ./services/spatial-ingestion
+  spatial-worker:
+    build: ./services/spatial-worker
     ports: ["8001:8001"]
     env_file: .env
     depends_on: [postgres-db, redis-cache]
+    volumes: [srave-model-weights:/models]
     restart: unless-stopped
 
-  billing-service:
-    build: ./services/billing-service
+  billing-worker:
+    build: ./services/billing-worker
     ports: ["8002:8002"]
     env_file: .env
     depends_on: [postgres-db]
@@ -27,6 +28,14 @@ services:
     ports: ["8003:8003"]
     env_file: .env
     depends_on: [postgres-db]
+    restart: unless-stopped
+
+  voice-service:
+    build: ./services/voice-service
+    ports: ["8004:8004"]
+    env_file: .env
+    depends_on: [billing-worker]
+    volumes: [srave-voice-models:/models]
     restart: unless-stopped
 
   postgres-db:
@@ -46,3 +55,5 @@ services:
 
 volumes:
   pgdata:
+  srave-model-weights:
+  srave-voice-models:

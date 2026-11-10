@@ -1,4 +1,4 @@
-.PHONY: up down build migrate lint test
+.PHONY: up down build migrate migrate-down seed lint test
 
 up:
 	docker compose up --build -d
@@ -10,23 +10,26 @@ build:
 	docker compose build
 
 migrate:
-	migrate -path ./database/migrations \
-	  -database "postgres://srave_user:$(DB_PASSWORD)@localhost:5432/srave_prod?sslmode=disable" up
+	docker compose run --rm srave-api python -m alembic upgrade head
 
 migrate-down:
-	migrate -path ./database/migrations \
-	  -database "postgres://srave_user:$(DB_PASSWORD)@localhost:5432/srave_prod?sslmode=disable" down
+	docker compose run --rm srave-api python -m alembic downgrade -1
 
 seed:
 	psql -U srave_user -d srave_prod -f database/seeds/sample_lga_boundaries.sql
 
 lint:
-	cd services/core-api && golangci-lint run
-	cd services/billing-service && golangci-lint run
-	cd services/multilateral-api && golangci-lint run
-	cd services/spatial-ingestion && ruff check .
+	ruff check services/api
+	ruff check services/spatial-worker
+	ruff check services/billing-worker
+	ruff check services/multilateral-api
+	ruff check services/voice-service
+
+format:
+	ruff format services/
 
 test:
-	cd services/core-api && go test ./...
-	cd services/billing-service && go test ./...
-	cd services/multilateral-api && go test ./...
+	pytest services/api/tests -v
+	pytest services/spatial-worker/tests -v
+	pytest services/billing-worker/tests -v
+	pytest services/multilateral-api/tests -v

@@ -10,18 +10,21 @@ jobs:
     strategy:
       matrix:
         include:
-          - service: core-api
+          - service: api
             image: srave-api
-            webhook_secret: COOLIFY_WEBHOOK_CORE_API
-          - service: billing-service
+            webhook_secret: COOLIFY_WEBHOOK_API
+          - service: spatial-worker
+            image: srave-spatial
+            webhook_secret: COOLIFY_WEBHOOK_SPATIAL
+          - service: billing-worker
             image: srave-billing
             webhook_secret: COOLIFY_WEBHOOK_BILLING
           - service: multilateral-api
             image: srave-multilateral
             webhook_secret: COOLIFY_WEBHOOK_MULTILATERAL
-          - service: spatial-ingestion
-            image: srave-spatial
-            webhook_secret: COOLIFY_WEBHOOK_SPATIAL
+          - service: voice-service
+            image: srave-voice
+            webhook_secret: COOLIFY_WEBHOOK_VOICE
 
     steps:
       - uses: actions/checkout@v4

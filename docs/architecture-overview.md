@@ -1,6 +1,6 @@
 # Architecture Overview
 
-SRAVE is composed of five independently deployable services behind a single Nginx reverse proxy.
+SRAVE is composed of five independently deployable Python services behind a single Nginx reverse proxy.
 
 ```
                         ┌─────────────────────────────────────┐
@@ -12,40 +12,54 @@ SRAVE is composed of five independently deployable services behind a single Ngin
                                │      │      │        │
               ┌────────────────┘      │  /api/v1      │
               │                       │      │        │
-     ┌────────▼──────────┐  ┌─────────▼──┐  ▼  ┌─────▼──────────────┐
-     │ spatial-ingestion │  │  billing-  │     │  multilateral-api  │
-     │  Python / FastAPI │  │  service   │     │    Go / Fiber      │
-     │  GEE + SAM/YOLO   │  │  Go/Fiber  │     │  SHA-256 signed    │
-     └────────┬──────────┘  └─────┬──────┘     └────────────────────┘
-              │                   │
-              └──────┬────────────┘
+     ┌────────▼──────────┐  ┌─────────▼────┐ ▼  ┌────▼───────────────┐
+     │  spatial-worker   │  │billing-worker│    │  multilateral-api  │
+     │ Python / FastAPI  │  │Python/FastAPI│    │  Python / FastAPI  │
+     │ GEE + SAM/YOLOv8  │  │WA + Flutterw │    │  SHA-256 signed    │
+     └────────┬──────────┘  └──────┬───────┘    └────────────────────┘
+              │                    │
+              └──────┬─────────────┘
                      │
           ┌──────────▼──────────┐        ┌──────────────────┐
-          │     core-api        │        │  field-agent-app │
-          │     Go / Fiber      │◄───────│  Flutter mobile  │
+          │      srave-api      │        │  field-agent-app │
+          │  Python / FastAPI   │◄───────│  Flutter mobile  │
           │  JWT · RBAC · REST  │        │  offline-first   │
           └──────────┬──────────┘        └──────────────────┘
                      │
-          ┌──────────▼──────────┐
-          │  PostgreSQL+PostGIS │
-          │  Redis cache        │
-          └─────────────────────┘
+          ┌──────────▼──────────┐   ┌──────────────────────┐
+          │  PostgreSQL+PostGIS │   │    voice-service     │
+          │  Redis (jobs/cache) │   │  Python / FastAPI    │
+          └─────────────────────┘   │  MMS TTS · 5 langs   │
+                                    └──────────────────────┘
 ```
 
 ## Services
 
 | Service | Language | Port | Responsibility |
 |---|---|---|---|
-| core-api | Go (Fiber) | 8080 | Auth, audit gap analysis, field agent routing |
-| spatial-ingestion | Python (FastAPI) | 8001 | GEE imagery pull, SAM+YOLOv8 footprint extraction |
-| billing-service | Go (Fiber) | 8002 | WhatsApp notices, Flutterwave/Paystack payment links |
-| multilateral-api | Go (Fiber) | 8003 | Signed compliance metrics for World Bank / UN-Habitat |
-| field-agent-app | Flutter | — | Offline-first mobile app for ground-truthing |
+| `api` | Python (FastAPI) | 8080 | Auth, JWT/RBAC, gap analysis, field routing, audit ledger |
+| `spatial-worker` | Python (FastAPI + Celery) | 8001 | GEE imagery pull, SAM+YOLOv8 footprint extraction, change detection |
+| `billing-worker` | Python (FastAPI + Celery) | 8002 | WhatsApp notices, Flutterwave/Paystack payment links |
+| `multilateral-api` | Python (FastAPI) | 8003 | SHA-256 signed compliance metrics for World Bank / UN-Habitat |
+| `voice-service` | Python (FastAPI) | 8004 | MMS TTS voice notices in 5 Nigerian languages |
+| `field-agent-app` | Flutter | — | Offline-first mobile app for ground-truthing |
+
+## Shared Dependencies
+
+All Python services extend `requirements-base.txt` at the repo root:
+- `fastapi`, `uvicorn` — API framework
+- `asyncpg` — async PostgreSQL + PostGIS
+- `redis[asyncio]` — job queue and caching
+- `httpx` — async internal service calls
+- `python-jose[cryptography]` — JWT auth
+- `pydantic v2` — request/response validation
+- `apscheduler` — cron jobs (daily audit snapshot)
 
 ## Data Flow
 
-1. `POST /api/v1/spatial/ingest` → spatial-ingestion pulls imagery → SAM+YOLOv8 extracts footprints → writes to `detected_buildings`
-2. core-api spatial join: `detected_buildings` vs `tax_assessments` → revenue gap
-3. Field agent verifies unregistered buildings via Flutter app → PATCH verified status
-4. billing-service sends WhatsApp demand notice + payment link → updates `wa_status`
-5. `GET /api/v1/multilateral/verify` → signed aggregate metrics → World Bank / UN-Habitat
+1. `POST /api/v1/spatial/ingest` → `spatial-worker` pulls GEE imagery → SAM+YOLOv8 extracts footprints → writes to `detected_buildings`
+2. `srave-api` PostGIS spatial join: `detected_buildings` vs `tax_roll` → revenue gap
+3. Field agent verifies buildings via Flutter app → `PATCH /field/buildings/{id}/verify`
+4. `billing-worker` sends WhatsApp demand notice + Flutterwave payment link → updates `wa_status`
+5. `voice-service` generates MMS TTS audio in owner's language → delivers via WhatsApp voice note
+6. `GET /api/v1/multilateral/verify` → SHA-256 chained signed metrics → World Bank / UN-Habitat

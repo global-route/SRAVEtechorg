@@ -1,12 +1,7 @@
-FROM golang:1.22-alpine AS builder
+FROM python:3.11-slim
 WORKDIR /app
-COPY go.mod ./
-RUN go mod download
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-RUN go build -o srave-multilateral ./cmd/main.go
-
-FROM alpine:3.19
-WORKDIR /app
-COPY --from=builder /app/srave-multilateral .
 EXPOSE 8003
-CMD ["./srave-multilateral"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]
