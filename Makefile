@@ -22,6 +22,9 @@ migrate-fresh:
 seed:
 	psql -U srave_user -d srave_prod -f database/seeds/sample_lga_boundaries.sql
 
+seed-ogun:
+	psql -U srave_user -d srave_prod -f database/seeds/ogun_lga_boundaries.sql
+
 lint:
 	ruff check services/api
 	ruff check services/spatial-worker

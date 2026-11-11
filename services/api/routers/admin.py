@@ -73,3 +73,46 @@ async def revoke_client(client_id: str, request: Request, _=Depends(require_scop
     )
     if result == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Client not found")
+
+
+# ── Failed jobs (dead letter queue) ─────────────────────────────────────────
+
+@router.get("/failed-jobs")
+async def list_failed_jobs(request: Request, _=Depends(require_scope("admin")),
+                           replayed: bool = False, lga_id: str | None = None):
+    q = "SELECT id, task_name, job_id, lga_id, error, retries, replayed, failed_at FROM failed_jobs WHERE replayed=$1"
+    args: list = [replayed]
+    if lga_id:
+        q += " AND lga_id=$2"
+        args.append(lga_id)
+    q += " ORDER BY failed_at DESC LIMIT 100"
+    rows = await request.app.state.pool.fetch(q, *args)
+    return [dict(r) for r in rows]
+
+
+@router.post("/failed-jobs/{job_id}/replay", status_code=202)
+async def replay_failed_job(job_id: str, request: Request, _=Depends(require_scope("admin"))):
+    row = await request.app.state.pool.fetchrow(
+        "SELECT task_name, payload, lga_id FROM failed_jobs WHERE job_id=$1 AND replayed=FALSE",
+        job_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Failed job not found or already replayed")
+
+    import json
+    payload = json.loads(row["payload"]) if isinstance(row["payload"], str) else dict(row["payload"])
+
+    if row["task_name"] == "ingest_worker.run":
+        from services.spatial_worker.ingestion.tasks import run_ingest  # type: ignore
+        run_ingest.delay(job_id, row["lga_id"], payload["bbox"],
+                         payload.get("source", "Sentinel-2"), payload.get("resolution_m", 1.0))
+    elif row["task_name"] == "ai_tasks.run_extraction":
+        from services.spatial_worker.ai.tasks import run_extraction  # type: ignore
+        run_extraction.delay(job_id, row["lga_id"], payload["tif_path"])
+    else:
+        raise HTTPException(status_code=422, detail=f"Unknown task: {row['task_name']}")
+
+    await request.app.state.pool.execute(
+        "UPDATE failed_jobs SET replayed=TRUE WHERE job_id=$1", job_id
+    )
+    return {"job_id": job_id, "status": "replayed"}

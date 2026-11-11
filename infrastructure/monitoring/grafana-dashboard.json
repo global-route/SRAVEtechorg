@@ -1,0 +1,93 @@
+{
+  "title": "SRAVE Operations",
+  "uid": "srave-ops",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_requests_total[1m]))",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error Rate (%)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_requests_total{status=~\"5..\"}[1m])) / sum by (job) (rate(http_requests_total[1m])) * 100",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "p95 Latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (job, le) (rate(http_request_duration_seconds_bucket[5m]))) * 1000",
+          "legendFormat": "{{job}} p95"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Gap Analysis — Unregistered Buildings",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 8 },
+      "targets": [
+        {
+          "expr": "srave_unregistered_gap_total",
+          "legendFormat": "Unregistered"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Celery — Active Tasks",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 8 },
+      "targets": [
+        {
+          "expr": "celery_tasks_active",
+          "legendFormat": "Active"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Assessments by WA Status",
+      "type": "piechart",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "srave_assessments_by_status",
+          "legendFormat": "{{wa_status}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Daily Collections (NGN)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "increase(srave_collections_ngn_total[1d])",
+          "legendFormat": "Collections"
+        }
+      ]
+    }
+  ]
+}

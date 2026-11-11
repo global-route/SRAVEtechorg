@@ -2,17 +2,23 @@ from contextlib import asynccontextmanager
 import asyncpg
 import redis.asyncio as aioredis
 import os
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from routers import auth, spatial, audit, field, billing, admin, privacy, webhooks
 from ledger.scheduler import start_scheduler
 from middleware.security import SecurityHeadersMiddleware
 from middleware.request_id import RequestIDMiddleware
+from middleware.logging_config import configure_logging
+
+log = structlog.get_logger()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging("srave-api")
     pool = await asyncpg.create_pool(
         host=os.getenv("DB_HOST", "postgres-db"),
         port=int(os.getenv("DB_PORT", 5432)),
@@ -25,13 +31,17 @@ async def lifespan(app: FastAPI):
     app.state.pool = pool
     app.state.redis = redis
     scheduler = start_scheduler(pool)
+    log.info("startup_complete", service="srave-api")
     yield
     scheduler.shutdown()
     await pool.close()
     await redis.aclose()
+    log.info("shutdown_complete", service="srave-api")
 
 
 app = FastAPI(title="SRAVE Core API", version="1.0.0", lifespan=lifespan)
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)
@@ -58,4 +68,5 @@ async def health():
         await app.state.redis.ping()
     except Exception:
         redis_ok = "error"
+    log.info("health_check", db=db_ok, redis=redis_ok)
     return {"status": "ok", "service": "srave-api", "db": db_ok, "redis": redis_ok}
