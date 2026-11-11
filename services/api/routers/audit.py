@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from repository.gap import get_gap_analysis, get_daily_collections
 from ledger.chain import append_snapshot, get_snapshots, verify_chain
-from middleware.auth import require_scope
+from middleware.auth import require_scope, require_scope_and_lga
 
 router = APIRouter()
 
 
 @router.get("/lga/{lga_id}/gap-analysis")
-async def gap_analysis(lga_id: str, request: Request, _=Depends(require_scope("municipal", "admin"))):
+async def gap_analysis(lga_id: str, request: Request, _=Depends(require_scope_and_lga("municipal", "admin"))):
     result = await get_gap_analysis(request.app.state.pool, lga_id)
     if not result:
         raise HTTPException(status_code=404, detail="LGA not found")
@@ -21,7 +21,7 @@ async def list_buildings(
     page: int = 1,
     limit: int = 50,
     verified: bool | None = None,
-    _=Depends(require_scope("municipal", "admin")),
+    _=Depends(require_scope_and_lga("municipal", "admin")),
 ):
     offset = (page - 1) * limit
     q = "SELECT id, lga_id, confidence_score, property_type, verified, scan_date FROM detected_buildings WHERE lga_id=$1"
@@ -37,7 +37,7 @@ async def list_buildings(
 
 
 @router.get("/lga/{lga_id}/collections")
-async def collections(lga_id: str, request: Request, _=Depends(require_scope("municipal", "admin"))):
+async def collections(lga_id: str, request: Request, _=Depends(require_scope_and_lga("municipal", "admin"))):
     return await get_daily_collections(request.app.state.pool, lga_id)
 
 
@@ -47,10 +47,11 @@ async def create_snapshot(request: Request, lga_id: str | None = None, _=Depends
 
 
 @router.get("/snapshots/{lga_id}")
-async def list_snapshots(lga_id: str, request: Request, _=Depends(require_scope("municipal", "admin"))):
+async def list_snapshots(lga_id: str, request: Request, _=Depends(require_scope_and_lga("municipal", "admin"))):
     return await get_snapshots(request.app.state.pool, lga_id)
 
 
 @router.get("/snapshots/{lga_id}/verify-chain")
-async def verify_chain_endpoint(lga_id: str, request: Request, _=Depends(require_scope("municipal", "admin"))):
+async def verify_chain_endpoint(lga_id: str, request: Request, _=Depends(require_scope_and_lga("municipal", "admin"))):
+
     return await verify_chain(request.app.state.pool, lga_id)

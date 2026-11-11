@@ -48,7 +48,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r ../../requirements-base.txt pytest pytest-asyncio httpx python-jose[cryptography]
+      - run: pip install -r ../../requirements-base.txt pytest pytest-asyncio httpx python-jose[cryptography] bcrypt
       - run: pytest tests -v --tb=short
 
   test-spatial-worker:
