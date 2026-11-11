@@ -1,0 +1,4 @@
+# Format: "username" "md5<md5(password+username)>" or "username" "SCRAM-SHA-256$..."
+# Generate with: echo -n "passwordusername" | md5sum  →  prefix with "md5"
+# Example (replace with real hash):
+"srave_user" "md5<REPLACE_WITH_MD5_HASH>"

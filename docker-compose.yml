@@ -7,8 +7,10 @@ services:
       dockerfile: services/api/Dockerfile
     ports: ["8080:8080"]
     env_file: .env
+    environment:
+      DB_HOST: pgbouncer
     depends_on:
-      postgres-db:
+      pgbouncer:
         condition: service_healthy
       redis-cache:
         condition: service_healthy
@@ -20,8 +22,10 @@ services:
       dockerfile: services/spatial-worker/Dockerfile
     ports: ["8001:8001"]
     env_file: .env
+    environment:
+      DB_HOST: pgbouncer
     depends_on:
-      postgres-db:
+      pgbouncer:
         condition: service_healthy
       redis-cache:
         condition: service_healthy
@@ -34,8 +38,10 @@ services:
       dockerfile: services/spatial-worker/Dockerfile
     command: celery -A ingestion.tasks.celery_app worker --loglevel=info -Q celery --concurrency=2
     env_file: .env
+    environment:
+      DB_HOST: pgbouncer
     depends_on:
-      postgres-db:
+      pgbouncer:
         condition: service_healthy
       redis-cache:
         condition: service_healthy
@@ -48,8 +54,10 @@ services:
       dockerfile: services/billing-worker/Dockerfile
     ports: ["8002:8002"]
     env_file: .env
+    environment:
+      DB_HOST: pgbouncer
     depends_on:
-      postgres-db:
+      pgbouncer:
         condition: service_healthy
       redis-cache:
         condition: service_healthy
@@ -61,8 +69,10 @@ services:
       dockerfile: services/billing-worker/Dockerfile
     command: celery -A routers.assess worker --loglevel=info --concurrency=2
     env_file: .env
+    environment:
+      DB_HOST: pgbouncer
     depends_on:
-      postgres-db:
+      pgbouncer:
         condition: service_healthy
       redis-cache:
         condition: service_healthy
@@ -74,8 +84,10 @@ services:
       dockerfile: services/multilateral-api/Dockerfile
     ports: ["8003:8003"]
     env_file: .env
+    environment:
+      DB_HOST: pgbouncer
     depends_on:
-      postgres-db:
+      pgbouncer:
         condition: service_healthy
     restart: unless-stopped
 
@@ -85,8 +97,10 @@ services:
       dockerfile: services/voice-service/Dockerfile
     ports: ["8004:8004"]
     env_file: .env
+    environment:
+      DB_HOST: pgbouncer
     depends_on:
-      postgres-db:
+      pgbouncer:
         condition: service_healthy
       billing-worker:
         condition: service_started
@@ -109,8 +123,33 @@ services:
 
   redis-cache:
     image: redis:7-alpine
+    command: redis-server /etc/redis/redis.conf
+    volumes:
+      - ./infrastructure/redis/redis.conf:/etc/redis/redis.conf:ro
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  pgbouncer:
+    image: bitnami/pgbouncer:1.22.1
+    environment:
+      POSTGRESQL_HOST: postgres-db
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: srave_prod
+      POSTGRESQL_USERNAME: srave_user
+      POSTGRESQL_PASSWORD: ${DB_PASSWORD}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      PGBOUNCER_MIN_POOL_SIZE: 2
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432"]
       interval: 5s
       timeout: 3s
       retries: 5

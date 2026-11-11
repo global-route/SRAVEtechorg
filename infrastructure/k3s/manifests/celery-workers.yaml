@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spatial-celery
+  namespace: srave
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: spatial-celery }
+  template:
+    metadata:
+      labels: { app: spatial-celery }
+    spec:
+      containers:
+        - name: spatial-celery
+          image: ghcr.io/atlantic-tech/srave-spatial:latest
+          command: ["celery", "-A", "ingestion.tasks.celery_app", "worker",
+                    "--loglevel=info", "-Q", "celery", "--concurrency=2"]
+          envFrom: [{ secretRef: { name: srave-secrets } }]
+          env:
+            - { name: DB_HOST, value: pgbouncer }
+          volumeMounts: [{ name: model-weights, mountPath: /models }]
+          resources:
+            requests: { cpu: "500m", memory: "2Gi" }
+            limits:   { cpu: "2000m", memory: "8Gi" }
+      volumes:
+        - name: model-weights
+          persistentVolumeClaim: { claimName: srave-model-weights-pvc }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-celery
+  namespace: srave
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: billing-celery }
+  template:
+    metadata:
+      labels: { app: billing-celery }
+    spec:
+      containers:
+        - name: billing-celery
+          image: ghcr.io/atlantic-tech/srave-billing:latest
+          command: ["celery", "-A", "routers.assess", "worker",
+                    "--loglevel=info", "--concurrency=2"]
+          envFrom: [{ secretRef: { name: srave-secrets } }]
+          env:
+            - { name: DB_HOST, value: pgbouncer }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
