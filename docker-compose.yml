@@ -29,7 +29,9 @@ services:
         condition: service_healthy
       redis-cache:
         condition: service_healthy
-    volumes: [srave-model-weights:/models]
+    volumes:
+      - srave-model-weights:/models
+      - ./secrets/gee_key.json:/run/secrets/gee_key.json:ro
     restart: unless-stopped
 
   spatial-celery:
@@ -45,7 +47,9 @@ services:
         condition: service_healthy
       redis-cache:
         condition: service_healthy
-    volumes: [srave-model-weights:/models]
+    volumes:
+      - srave-model-weights:/models
+      - ./secrets/gee_key.json:/run/secrets/gee_key.json:ro
     restart: unless-stopped
 
   billing-worker:
