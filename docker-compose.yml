@@ -149,6 +149,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: services/dashboard/Dockerfile
+    ports: ["3001:3001"]
+    environment:
+      API_BASE_URL: http://srave-api:8080
+      NEXT_PUBLIC_LGA_ID: ${PILOT_LGA:-Abeokuta South}
+    depends_on:
+      srave-api:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   pgdata:
   srave-model-weights:

@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from repository.gap import get_gap_analysis, get_daily_collections
 from ledger.chain import append_snapshot, get_snapshots, verify_chain
 from middleware.auth import require_scope, require_scope_and_lga
+import hashlib, json, os
+from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -55,3 +58,51 @@ async def list_snapshots(lga_id: str, request: Request, _=Depends(require_scope_
 async def verify_chain_endpoint(lga_id: str, request: Request, _=Depends(require_scope_and_lga("municipal", "admin"))):
 
     return await verify_chain(request.app.state.pool, lga_id)
+
+
+@router.get("/lga/{lga_id}/report.pdf", response_class=Response)
+async def gap_report_pdf(lga_id: str, request: Request, _=Depends(require_scope_and_lga("municipal", "admin"))):
+    from weasyprint import HTML
+    from string import Template
+
+    gap = await get_gap_analysis(request.app.state.pool, lga_id)
+    if not gap:
+        raise HTTPException(status_code=404, detail="LGA not found")
+
+    collections = await get_daily_collections(request.app.state.pool, lga_id)
+
+    chain_row = await request.app.state.pool.fetchrow(
+        "SELECT ledger_entry_hash FROM audit_snapshots WHERE lga_id=$1 ORDER BY snapshot_date DESC LIMIT 1",
+        lga_id,
+    )
+    chain_head = chain_row["ledger_entry_hash"] if chain_row else "genesis"
+
+    canonical = json.dumps(gap, sort_keys=True, default=str)
+    signature = "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
+
+    tmpl_path = os.path.join(os.path.dirname(__file__), "..", "templates", "gap_report.html")
+    with open(tmpl_path) as f:
+        raw = f.read()
+
+    # Simple Jinja2-style render
+    from jinja2 import Template as J2Template
+    html = J2Template(raw).render(
+        lga_id=lga_id,
+        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        total_detected_buildings=f"{gap['total_detected_buildings']:,}",
+        registered_tax_payers=f"{gap['registered_tax_payers']:,}",
+        unregistered_gap=f"{gap['unregistered_gap']:,}",
+        estimated_annual_revenue_gap_ngn=f"{gap['estimated_annual_revenue_gap_ngn']:,.0f}",
+        compliance_percentage=gap["compliance_percentage"],
+        collections=[{"date": r["date"], "paid_count": r["paid_count"],
+                      "total_ngn": f"{r['total_ngn']:,.0f}"} for r in collections],
+        chain_head_hash=chain_head,
+        signature=signature,
+    )
+
+    pdf_bytes = HTML(string=html).write_pdf()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="srave-gap-{lga_id}.pdf"'},
+    )
