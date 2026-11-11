@@ -586,7 +586,7 @@ update `DB_HOST` default in all service `main.py` files
 | Sprint | Theme | Key Outcomes |
 |---|---|---|
 | 10 ✅ | Infrastructure Hardening | Docker builds, Celery workers, async billing, full OpenAPI, Flutter CI |
-| 11 | Production Hardening | DB ports closed, schema gaps fixed, photo storage, rate limits |
+| 11 | Production Hardening | DB ports closed, schema gaps fixed (migrations 006–008), photo storage, LGA-filtered assignments, per-route rate limits |
 | 12 | Auth & Multi-Tenancy | DB clients, token refresh, LGA-scoped JWTs, Flutter login |
 | 13 | Pilot Data & Observability | Real Ogun data, structured logs, Prometheus/Grafana, Flower, DLQ |
 | 14 | Dashboard & Reporting | Municipal web UI, PDF reports, payment reminders |

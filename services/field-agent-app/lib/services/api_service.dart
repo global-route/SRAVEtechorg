@@ -8,11 +8,15 @@ class ApiService {
 
   const ApiService({required this.baseUrl, required this.token});
 
-  Future<List<Building>> getAssignments(String agentId) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/field/assignments/$agentId'),
-      headers: {'Authorization': 'Bearer $token'},
+  Future<List<Building>> getAssignments(String agentId, {String? lgaId, int page = 1}) async {
+    final uri = Uri.parse('$baseUrl/field/assignments/$agentId').replace(
+      queryParameters: {
+        if (lgaId != null) 'lga_id': lgaId,
+        'page': '$page',
+        'limit': '50',
+      },
     );
+    final res = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
     if (res.statusCode != 200) throw Exception('Failed to load assignments');
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     final List data = body['assignments'] as List;

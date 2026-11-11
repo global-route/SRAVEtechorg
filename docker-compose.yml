@@ -7,7 +7,11 @@ services:
       dockerfile: services/api/Dockerfile
     ports: ["8080:8080"]
     env_file: .env
-    depends_on: [postgres-db, redis-cache]
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
     restart: unless-stopped
 
   spatial-worker:
@@ -16,7 +20,11 @@ services:
       dockerfile: services/spatial-worker/Dockerfile
     ports: ["8001:8001"]
     env_file: .env
-    depends_on: [postgres-db, redis-cache]
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
     volumes: [srave-model-weights:/models]
     restart: unless-stopped
 
@@ -26,7 +34,11 @@ services:
       dockerfile: services/spatial-worker/Dockerfile
     command: celery -A ingestion.tasks.celery_app worker --loglevel=info -Q celery --concurrency=2
     env_file: .env
-    depends_on: [postgres-db, redis-cache]
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
     volumes: [srave-model-weights:/models]
     restart: unless-stopped
 
@@ -36,7 +48,11 @@ services:
       dockerfile: services/billing-worker/Dockerfile
     ports: ["8002:8002"]
     env_file: .env
-    depends_on: [postgres-db, redis-cache]
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
     restart: unless-stopped
 
   billing-celery:
@@ -45,7 +61,11 @@ services:
       dockerfile: services/billing-worker/Dockerfile
     command: celery -A routers.assess worker --loglevel=info --concurrency=2
     env_file: .env
-    depends_on: [postgres-db, redis-cache]
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
     restart: unless-stopped
 
   multilateral-api:
@@ -54,7 +74,9 @@ services:
       dockerfile: services/multilateral-api/Dockerfile
     ports: ["8003:8003"]
     env_file: .env
-    depends_on: [postgres-db]
+    depends_on:
+      postgres-db:
+        condition: service_healthy
     restart: unless-stopped
 
   voice-service:
@@ -63,7 +85,11 @@ services:
       dockerfile: services/voice-service/Dockerfile
     ports: ["8004:8004"]
     env_file: .env
-    depends_on: [postgres-db, billing-worker]
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      billing-worker:
+        condition: service_started
     volumes: [srave-voice-models:/models]
     restart: unless-stopped
 
@@ -74,12 +100,20 @@ services:
       POSTGRES_USER: srave_user
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes: [pgdata:/var/lib/postgresql/data]
-    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U srave_user -d srave_prod"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   redis-cache:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
 volumes:

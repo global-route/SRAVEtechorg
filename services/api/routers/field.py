@@ -6,12 +6,28 @@ router = APIRouter()
 
 
 @router.get("/assignments/{agent_id}")
-async def get_assignments(agent_id: str, request: Request, _=Depends(require_scope("field_agent", "admin"))):
-    rows = await request.app.state.pool.fetch(
-        "SELECT id, lga_id, property_type, verified FROM detected_buildings "
-        "WHERE verified=false ORDER BY created_at DESC LIMIT 50"
-    )
-    return {"agent_id": agent_id, "assignments": [dict(r) for r in rows]}
+async def get_assignments(
+    agent_id: str,
+    request: Request,
+    lga_id: str | None = None,
+    page: int = 1,
+    limit: int = 50,
+    _=Depends(require_scope("field_agent", "admin")),
+):
+    offset = (page - 1) * limit
+    if lga_id:
+        rows = await request.app.state.pool.fetch(
+            "SELECT id, lga_id, property_type, verified, confidence_score FROM detected_buildings "
+            "WHERE verified=false AND lga_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+            lga_id, limit, offset,
+        )
+    else:
+        rows = await request.app.state.pool.fetch(
+            "SELECT id, lga_id, property_type, verified, confidence_score FROM detected_buildings "
+            "WHERE verified=false ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+            limit, offset,
+        )
+    return {"agent_id": agent_id, "lga_id": lga_id, "page": page, "assignments": [dict(r) for r in rows]}
 
 
 @router.patch("/buildings/{building_id}/verify")
@@ -23,8 +39,10 @@ async def verify_building(
 ):
     pool = request.app.state.pool
     await pool.execute(
-        "UPDATE detected_buildings SET verified=$1, property_type=COALESCE($2, property_type) WHERE id=$3",
-        body.verified, body.property_type, building_id,
+        "UPDATE detected_buildings "
+        "SET verified=$1, property_type=COALESCE($2, property_type), photo_url=COALESCE($3, photo_url) "
+        "WHERE id=$4",
+        body.verified, body.property_type, body.photo_url, building_id,
     )
     if body.owner_phone:
         await pool.execute(
