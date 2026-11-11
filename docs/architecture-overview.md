@@ -67,28 +67,19 @@ caches on `/models`.
 
 ## Deployment status and optimization
 
-- The Compose and GitHub Actions Docker builds use each service directory as
-  their build context. Service requirements include `../../requirements-base.txt`,
-  which is outside that context. As configured, builds that install these
-  requirements cannot access the shared file. Build from the repository root
-  with each service's Dockerfile, or adjust the requirements/context layout.
-- The spatial code defines Celery tasks, but Compose starts `spatial-worker`
-  using only its Uvicorn command; it does not start a Celery worker process.
-  Add a separate worker process that imports/registers both ingestion and AI
-  task modules before relying on queued jobs.
-- Reduce image size and build time by separating shared runtime packages from
-  service-specific dependencies and pinning transitive versions. Use a
-  CPU-appropriate PyTorch wheel where GPUs are unavailable.
-- Keep inference isolated from request-serving processes, persist model caches,
-  and set memory/CPU/GPU limits based on measured workloads. Avoid preloading
-  every voice model when only a subset is needed.
-- For production, keep PostgreSQL and Redis on private networks rather than
-  publishing their ports, add dependency health checks/readiness handling, and
-  configure database backups and persistent storage.
-- Coolify is a deployment/operations layer, not an SRAVE runtime dependency.
-  The current GitHub Actions workflow builds and pushes service images to GHCR,
-  then calls service-specific Coolify webhooks. See
-  [Coolify deployment notes](../infrastructure/coolify/deploy-hooks.md).
+All known deployment blockers have been resolved as of phase 15:
+
+- Docker build context fixed — all Dockerfiles copy `requirements-base.txt` from repo root
+- Celery workers (`spatial-celery`, `billing-celery`) are defined in Compose and K3s
+- Postgres and Redis do not publish external ports
+- All services connect via PgBouncer (transaction pooling, max 200 client connections)
+- Redis has a 512MB memory cap with LRU eviction
+- Health checks and `depends_on: condition: service_healthy` on all services
+- Resource `requests` and `limits` on all K3s Deployments
+
+See [Coolify deployment notes](../infrastructure/coolify/deploy-hooks.md) for
+the current deployment workflow and [docs/runbook.md](runbook.md) for
+operational procedures.
 
 ## Data Flow
 
@@ -111,18 +102,23 @@ caches on `/models`.
 | 7 | `352d612` | Security headers middleware, request ID middleware, migration 005 (sync_conflicts), contributing.md |
 | 8 | `36eb893` | `ai/router.py` extraction endpoint (was stub), MapScreen Mapbox GL + verify flow, `api_service.dart` response parsing fix |
 | 9 | `4ca4ccc` | Smoke tests for all 4 Python services, CI workflow fixed (per-service jobs, path fix, no `continue-on-error`), docs updated |
-| 10 | `ed5c945` | Docker build context fixed (all 5 services), Celery workers wired, billing asyncpg migration, full OpenAPI spec (22 endpoints), Flutter CI + widget/unit tests, voice-service DB lookup, deploy-hooks updated |
+| 10 | `ed5c945` | Docker build context fixed (all 5 services), Celery workers wired, billing asyncpg migration, full OpenAPI spec (22 endpoints), Flutter CI + widget/unit tests, voice-service DB lookup |
+| 11 | `e18c7e7` | DB/Redis ports closed, health checks, migrations 006–008 (schema gaps + photo_url), LGA-filtered assignments, per-route Nginx rate limits |
+| 12 | `a5c99be` | DB-backed clients + bcrypt, token refresh via Redis, LGA-scoped JWT middleware, Flutter login screen + auto-refresh |
+| 13 | `9ee1ca1` | All 20 Ogun LGA boundaries, structlog JSON logging, Prometheus + Grafana, Celery Flower, dead letter queue + failed_jobs |
+| 14 | `fd33430` | Next.js municipal dashboard (6 pages), WeasyPrint PDF report, payment reminder scheduler, migration 011 |
+| 15 | `6b4abf6` | GeoTIFF tiling, Redis memory cap, provider retries + circuit breakers, complete K3s manifests, PgBouncer |
 
 ---
 
-## Forward Roadmap
+## Documentation
 
-See [docs/roadmap.md](roadmap.md) for the full multi-phase plan (sprints 11–15).
-
-| Sprint | Theme |
+| Document | What it covers |
 |---|---|
-| 11 | Production Hardening — DB ports, schema gaps, photo storage, rate limits |
-| 12 | Auth & Multi-Tenancy — DB clients, token refresh, LGA-scoped JWTs, Flutter login |
-| 13 | Pilot Data & Observability — real Ogun data, structured logs, Prometheus/Grafana, DLQ |
-| 14 | Dashboard & Reporting — municipal web UI, PDF reports, payment reminders |
-| 15 | Scale & Resilience — GeoTIFF tiling, Redis cap, provider retries, K3s complete, PgBouncer |
+| [contributing.md](contributing.md) | Local setup, workflow, CI jobs, migration table |
+| [runbook.md](runbook.md) | Deploy, rollback, DB backup, model loading, incident response |
+| [data-model.md](data-model.md) | Full schema reference — all 11 migrations, indexes, key queries |
+| [security.md](security.md) | Auth model, scopes, LGA isolation, secrets, TLS, NDPA/GDPR |
+| [integrations.md](integrations.md) | GEE, WhatsApp, Flutterwave, Paystack, Mapbox, MMS-TTS setup |
+| [openapi.yaml](openapi.yaml) | Full OpenAPI 3.0 spec — all 22 endpoints |
+| [roadmap.md](roadmap.md) | Sprints 11–15 task breakdown (all complete) |
