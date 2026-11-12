@@ -90,9 +90,12 @@ services:
     env_file: .env
     environment:
       DB_HOST: pgbouncer
+      SIGNING_KEY_PATH: /run/secrets/signing.key
     depends_on:
       pgbouncer:
         condition: service_healthy
+    volumes:
+      - ./secrets/signing.key:/run/secrets/signing.key:ro
     restart: unless-stopped
 
   voice-service:

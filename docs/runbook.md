@@ -214,6 +214,21 @@ curl -s "https://api.srave.io/api/v1/admin/failed-jobs?replayed=false" \
 
 ---
 
+## Signing key
+
+### Generate Ed25519 key pair (run once on production host)
+
+```bash
+mkdir -p secrets
+openssl genpkey -algorithm ed25519 -out secrets/signing.key
+openssl pkey -in secrets/signing.key -pubout -out secrets/signing.pub
+chmod 600 secrets/signing.key
+```
+
+The `secrets/` directory is gitignored. The key is mounted read-only into `multilateral-api` at `/run/secrets/signing.key`. The public key is served at `GET /.well-known/signing-key.pub`.
+
+---
+
 ## Auth
 
 ### Create a new municipal client
