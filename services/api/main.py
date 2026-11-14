@@ -9,6 +9,7 @@ from routers import auth, spatial, audit, field, billing, admin, privacy, webhoo
 from ledger.scheduler import start_scheduler
 from middleware.security import SecurityHeadersMiddleware
 from middleware.request_id import RequestIDMiddleware
+from middleware.rate_limit import RateLimitMiddleware
 
 
 @asynccontextmanager
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SRAVE Core API", version="1.0.0", lifespan=lifespan)
 
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])

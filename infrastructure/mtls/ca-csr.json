@@ -1,0 +1,8 @@
+{
+  "CN": "SRAVE Internal CA",
+  "key": { "algo": "ecdsa", "size": 256 },
+  "names": [
+    { "C": "NG", "ST": "Lagos", "L": "Lagos", "O": "Atlantic Tech Innovations", "OU": "SRAVE Platform" }
+  ],
+  "ca": { "expiry": "87600h" }
+}

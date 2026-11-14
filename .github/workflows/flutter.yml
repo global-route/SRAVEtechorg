@@ -1,0 +1,49 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+    paths: ["services/field-agent-app/**"]
+  pull_request:
+    paths: ["services/field-agent-app/**"]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.0"
+      - name: Install deps
+        run: flutter pub get
+        working-directory: services/field-agent-app
+      - name: Lint
+        run: flutter analyze
+        working-directory: services/field-agent-app
+      - name: Test
+        run: flutter test
+        working-directory: services/field-agent-app
+
+  build-apk:
+    runs-on: ubuntu-latest
+    needs: lint-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.22.0"
+      - name: Install deps
+        run: flutter pub get
+        working-directory: services/field-agent-app
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > services/field-agent-app/android/app/keystore.jks
+      - name: Build APK
+        run: flutter build apk --release --dart-define=API_BASE_URL=https://api.srave.io
+        working-directory: services/field-agent-app
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: srave-field-agent-${{ github.sha }}
+          path: services/field-agent-app/build/app/outputs/flutter-apk/app-release.apk
