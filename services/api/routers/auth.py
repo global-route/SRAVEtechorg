@@ -1,6 +1,9 @@
 import os
-from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+import secrets
+from datetime import datetime, timedelta, timezone
+
+import bcrypt
+from fastapi import APIRouter, HTTPException, Request
 from jose import jwt
 from pydantic import BaseModel
 
@@ -8,15 +11,8 @@ router = APIRouter()
 
 SECRET = os.getenv("JWT_SECRET", "")
 EXPIRY = int(os.getenv("JWT_EXPIRY_SECONDS", 3600))
+REFRESH_TTL = int(os.getenv("REFRESH_TOKEN_TTL_SECONDS", 604800))  # 7 days
 ALGORITHM = "HS256"
-
-# Scope map — in production replace with DB lookup
-_CLIENTS = {
-    os.getenv("MUNICIPAL_CLIENT_ID"): ("municipal", os.getenv("MUNICIPAL_CLIENT_SECRET")),
-    os.getenv("FIELD_AGENT_CLIENT_ID"): ("field_agent", os.getenv("FIELD_AGENT_CLIENT_SECRET")),
-    os.getenv("MULTILATERAL_CLIENT_ID"): ("multilateral", os.getenv("MULTILATERAL_CLIENT_SECRET")),
-    os.getenv("ADMIN_CLIENT_ID"): ("admin", os.getenv("ADMIN_CLIENT_SECRET")),
-}
 
 
 class TokenRequest(BaseModel):
@@ -24,16 +20,73 @@ class TokenRequest(BaseModel):
     client_secret: str
 
 
-@router.post("/token")
-async def issue_token(body: TokenRequest):
-    entry = _CLIENTS.get(body.client_id)
-    if not entry or entry[1] != body.client_secret:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    scope, _ = entry
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+def _make_access_token(client_id: str, scope: str, lga_id: str | None) -> str:
     payload = {
-        "sub": body.client_id,
+        "sub": client_id,
         "scope": scope,
-        "exp": datetime.utcnow() + timedelta(seconds=EXPIRY),
+        "lga_id": lga_id,
+        "exp": datetime.now(timezone.utc) + timedelta(seconds=EXPIRY),
     }
-    token = jwt.encode(payload, SECRET, algorithm=ALGORITHM)
-    return {"access_token": token, "expires_in": EXPIRY, "token_type": "Bearer"}
+    return jwt.encode(payload, SECRET, algorithm=ALGORITHM)
+
+
+@router.post("/token")
+async def issue_token(body: TokenRequest, request: Request):
+    pool = request.app.state.pool
+    row = await pool.fetchrow(
+        "SELECT secret_hash, scope, lga_id FROM clients WHERE id=$1 AND active=TRUE",
+        body.client_id,
+    )
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not bcrypt.checkpw(body.client_secret.encode(), row["secret_hash"].encode()):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    access_token = _make_access_token(body.client_id, row["scope"], row["lga_id"])
+
+    refresh_token = secrets.token_urlsafe(48)
+    redis = request.app.state.redis
+    await redis.setex(
+        f"refresh:{refresh_token}",
+        REFRESH_TTL,
+        f"{body.client_id}:{row['scope']}:{row['lga_id'] or ''}",
+    )
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_in": EXPIRY,
+        "token_type": "Bearer",
+    }
+
+
+@router.post("/refresh")
+async def refresh_token(body: RefreshRequest, request: Request):
+    redis = request.app.state.redis
+    value = await redis.get(f"refresh:{body.refresh_token}")
+    if not value:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    parts = value.decode().split(":")
+    client_id, scope, lga_id = parts[0], parts[1], parts[2] or None
+
+    # Rotate — delete old, issue new
+    await redis.delete(f"refresh:{body.refresh_token}")
+    new_refresh = secrets.token_urlsafe(48)
+    await redis.setex(
+        f"refresh:{new_refresh}",
+        REFRESH_TTL,
+        f"{client_id}:{scope}:{lga_id or ''}",
+    )
+
+    return {
+        "access_token": _make_access_token(client_id, scope, lga_id),
+        "refresh_token": new_refresh,
+        "expires_in": EXPIRY,
+        "token_type": "Bearer",
+    }

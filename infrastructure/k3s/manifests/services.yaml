@@ -16,10 +16,19 @@ spec:
           image: ghcr.io/atlantic-tech/srave-api:latest
           ports: [{ containerPort: 8080 }]
           envFrom: [{ secretRef: { name: srave-secrets } }]
+          env:
+            - { name: DB_HOST, value: pgbouncer }
+          resources:
+            requests: { cpu: "200m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "512Mi" }
           livenessProbe:
             httpGet: { path: /health, port: 8080 }
             initialDelaySeconds: 10
             periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -48,11 +57,20 @@ spec:
           image: ghcr.io/atlantic-tech/srave-spatial:latest
           ports: [{ containerPort: 8001 }]
           envFrom: [{ secretRef: { name: srave-secrets } }]
+          env:
+            - { name: DB_HOST, value: pgbouncer }
           volumeMounts: [{ name: model-weights, mountPath: /models }]
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "1000m", memory: "2Gi" }
           livenessProbe:
             httpGet: { path: /health, port: 8001 }
             initialDelaySeconds: 30
             periodSeconds: 60
+          readinessProbe:
+            httpGet: { path: /health, port: 8001 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
       volumes:
         - name: model-weights
           persistentVolumeClaim: { claimName: srave-model-weights-pvc }
@@ -84,10 +102,19 @@ spec:
           image: ghcr.io/atlantic-tech/srave-billing:latest
           ports: [{ containerPort: 8002 }]
           envFrom: [{ secretRef: { name: srave-secrets } }]
+          env:
+            - { name: DB_HOST, value: pgbouncer }
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
           livenessProbe:
             httpGet: { path: /health, port: 8002 }
             initialDelaySeconds: 10
             periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /health, port: 8002 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -116,10 +143,19 @@ spec:
           image: ghcr.io/atlantic-tech/srave-multilateral:latest
           ports: [{ containerPort: 8003 }]
           envFrom: [{ secretRef: { name: srave-secrets } }]
+          env:
+            - { name: DB_HOST, value: pgbouncer }
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
           livenessProbe:
             httpGet: { path: /health, port: 8003 }
             initialDelaySeconds: 10
             periodSeconds: 30
+          readinessProbe:
+            httpGet: { path: /health, port: 8003 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -148,11 +184,20 @@ spec:
           image: ghcr.io/atlantic-tech/srave-voice:latest
           ports: [{ containerPort: 8004 }]
           envFrom: [{ secretRef: { name: srave-secrets } }]
+          env:
+            - { name: DB_HOST, value: pgbouncer }
           volumeMounts: [{ name: voice-models, mountPath: /models }]
+          resources:
+            requests: { cpu: "200m", memory: "1Gi" }
+            limits:   { cpu: "2000m", memory: "4Gi" }
           livenessProbe:
             httpGet: { path: /health, port: 8004 }
             initialDelaySeconds: 30
             periodSeconds: 60
+          readinessProbe:
+            httpGet: { path: /health, port: 8004 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
       volumes:
         - name: voice-models
           persistentVolumeClaim: { claimName: srave-voice-models-pvc }
@@ -165,3 +210,40 @@ metadata:
 spec:
   selector: { app: voice-service }
   ports: [{ port: 8004, targetPort: 8004 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: srave
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: dashboard }
+  template:
+    metadata:
+      labels: { app: dashboard }
+    spec:
+      containers:
+        - name: dashboard
+          image: ghcr.io/atlantic-tech/srave-dashboard:latest
+          ports: [{ containerPort: 3001 }]
+          env:
+            - { name: API_BASE_URL, value: "http://srave-api:8080" }
+          envFrom: [{ secretRef: { name: srave-secrets } }]
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+          livenessProbe:
+            httpGet: { path: /, port: 3001 }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: srave
+spec:
+  selector: { app: dashboard }
+  ports: [{ port: 3001, targetPort: 3001 }]

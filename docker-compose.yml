@@ -2,39 +2,115 @@ version: "3.8"
 
 services:
   srave-api:
-    build: ./services/api
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
     ports: ["8080:8080"]
     env_file: .env
-    depends_on: [postgres-db, redis-cache]
+    environment:
+      DB_HOST: pgbouncer
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
     restart: unless-stopped
 
   spatial-worker:
-    build: ./services/spatial-worker
+    build:
+      context: .
+      dockerfile: services/spatial-worker/Dockerfile
     ports: ["8001:8001"]
     env_file: .env
-    depends_on: [postgres-db, redis-cache]
-    volumes: [srave-model-weights:/models]
+    environment:
+      DB_HOST: pgbouncer
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+    volumes:
+      - srave-model-weights:/models
+      - ./secrets/gee_key.json:/run/secrets/gee_key.json:ro
+    restart: unless-stopped
+
+  spatial-celery:
+    build:
+      context: .
+      dockerfile: services/spatial-worker/Dockerfile
+    command: celery -A ingestion.tasks.celery_app worker --loglevel=info -Q celery --concurrency=2
+    env_file: .env
+    environment:
+      DB_HOST: pgbouncer
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+    volumes:
+      - srave-model-weights:/models
+      - ./secrets/gee_key.json:/run/secrets/gee_key.json:ro
     restart: unless-stopped
 
   billing-worker:
-    build: ./services/billing-worker
+    build:
+      context: .
+      dockerfile: services/billing-worker/Dockerfile
     ports: ["8002:8002"]
     env_file: .env
-    depends_on: [postgres-db]
+    environment:
+      DB_HOST: pgbouncer
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+    restart: unless-stopped
+
+  billing-celery:
+    build:
+      context: .
+      dockerfile: services/billing-worker/Dockerfile
+    command: celery -A routers.assess worker --loglevel=info --concurrency=2
+    env_file: .env
+    environment:
+      DB_HOST: pgbouncer
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
     restart: unless-stopped
 
   multilateral-api:
-    build: ./services/multilateral-api
+    build:
+      context: .
+      dockerfile: services/multilateral-api/Dockerfile
     ports: ["8003:8003"]
     env_file: .env
-    depends_on: [postgres-db]
+    environment:
+      DB_HOST: pgbouncer
+      SIGNING_KEY_PATH: /run/secrets/signing.key
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+    volumes:
+      - ./secrets/signing.key:/run/secrets/signing.key:ro
     restart: unless-stopped
 
   voice-service:
-    build: ./services/voice-service
+    build:
+      context: .
+      dockerfile: services/voice-service/Dockerfile
     ports: ["8004:8004"]
     env_file: .env
-    depends_on: [billing-worker]
+    environment:
+      DB_HOST: pgbouncer
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      billing-worker:
+        condition: service_started
     volumes: [srave-voice-models:/models]
     restart: unless-stopped
 
@@ -45,15 +121,96 @@ services:
       POSTGRES_USER: srave_user
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes: [pgdata:/var/lib/postgresql/data]
-    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U srave_user -d srave_prod"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   redis-cache:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    command: redis-server /etc/redis/redis.conf
+    volumes:
+      - ./infrastructure/redis/redis.conf:/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  pgbouncer:
+    image: bitnami/pgbouncer:1.22.1
+    environment:
+      POSTGRESQL_HOST: postgres-db
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: srave_prod
+      POSTGRESQL_USERNAME: srave_user
+      POSTGRESQL_PASSWORD: ${DB_PASSWORD}
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      PGBOUNCER_MIN_POOL_SIZE: 2
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=30d"]
+    ports: ["9090:9090"]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-srave_grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/srave.json:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+  spatial-flower:
+    build:
+      context: .
+      dockerfile: services/spatial-worker/Dockerfile
+    command: celery -A ingestion.tasks.celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-srave_flower}
+    ports: ["5555:5555"]
+    env_file: .env
+    depends_on:
+      redis-cache:
+        condition: service_healthy
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: services/dashboard/Dockerfile
+    ports: ["3001:3001"]
+    environment:
+      API_BASE_URL: http://srave-api:8080
+      NEXT_PUBLIC_LGA_ID: ${PILOT_LGA:-Abeokuta South}
+    depends_on:
+      srave-api:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
   pgdata:
   srave-model-weights:
   srave-voice-models:
+  prometheus-data:
+  grafana-data:

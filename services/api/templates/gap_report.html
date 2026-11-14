@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; margin: 40px; }
+  h1 { color: #166534; font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #6b7280; font-size: 11px; margin-bottom: 32px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .kpi { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; }
+  .kpi-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+  .kpi-value { font-size: 20px; font-weight: bold; color: #166534; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  th { background: #f9fafb; text-align: left; padding: 8px 12px; font-size: 10px;
+       text-transform: uppercase; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
+  td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb;
+            font-size: 10px; color: #9ca3af; display: flex; justify-content: space-between; }
+  .hash { font-family: monospace; font-size: 9px; color: #9ca3af; word-break: break-all; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px;
+           background: #dcfce7; color: #166534; font-weight: 600; }
+</style>
+</head>
+<body>
+  <h1>SRAVE — Revenue Gap Analysis Report</h1>
+  <p class="subtitle">{{ lga_id }} &nbsp;·&nbsp; Generated {{ generated_at }} &nbsp;·&nbsp; Atlantic Tech Innovations</p>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">Detected Buildings</div>
+      <div class="kpi-value">{{ total_detected_buildings }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Registered Taxpayers</div>
+      <div class="kpi-value">{{ registered_tax_payers }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Unregistered Gap</div>
+      <div class="kpi-value">{{ unregistered_gap }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Est. Annual Revenue Gap</div>
+      <div class="kpi-value">₦{{ estimated_annual_revenue_gap_ngn }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Compliance Rate</div>
+      <div class="kpi-value">{{ compliance_percentage }}%</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Report Status</div>
+      <div class="kpi-value"><span class="badge">Signed</span></div>
+    </div>
+  </div>
+
+  <h2 style="font-size:14px; margin-bottom:8px;">30-Day Collections</h2>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Paid Count</th><th>Total (NGN)</th></tr>
+    </thead>
+    <tbody>
+      {% for row in collections %}
+      <tr>
+        <td>{{ row.date }}</td>
+        <td>{{ row.paid_count }}</td>
+        <td>₦{{ row.total_ngn }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2 style="font-size:14px; margin-bottom:8px;">Audit Chain</h2>
+  <p class="hash">Latest snapshot hash: {{ chain_head_hash }}</p>
+  <p class="hash">Signature: {{ signature }}</p>
+
+  <div class="footer">
+    <span>SRAVE · Atlantic Tech Innovations · api.srave.io</span>
+    <span>Compliant with NDPA &amp; GDPR · DPG Candidate</span>
+  </div>
+</body>
+</html>

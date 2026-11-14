@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: srave-api
+    static_configs:
+      - targets: ["srave-api:8080"]
+    metrics_path: /metrics
+
+  - job_name: spatial-worker
+    static_configs:
+      - targets: ["spatial-worker:8001"]
+    metrics_path: /metrics
+
+  - job_name: billing-worker
+    static_configs:
+      - targets: ["billing-worker:8002"]
+    metrics_path: /metrics
+
+  - job_name: multilateral-api
+    static_configs:
+      - targets: ["multilateral-api:8003"]
+    metrics_path: /metrics
+
+  - job_name: voice-service
+    static_configs:
+      - targets: ["voice-service:8004"]
+    metrics_path: /metrics

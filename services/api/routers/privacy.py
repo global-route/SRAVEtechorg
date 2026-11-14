@@ -12,7 +12,18 @@ async def get_dsar(phone: str, request: Request, _=Depends(require_scope("admin"
         "SELECT ta.id, ta.amount_due, ta.wa_status, ta.assessed_at FROM tax_assessments ta "
         "JOIN tax_roll tr ON tr.id = ta.building_id WHERE tr.owner_phone=$1", phone,
     )
-    return {"phone": phone, "tax_roll": [dict(r) for r in roll], "assessments": [dict(r) for r in assessments]}
+    return {
+        "phone": phone,
+        "tax_roll": [dict(r) for r in roll],
+        "assessments": [dict(r) for r in assessments],
+        "exemptions": [
+            {
+                "table": "tax_assessments",
+                "field": "owner_phone",
+                "reason": "Financial record — exempt from erasure under NDPA Article 25. Assessment records are retained for statutory audit purposes.",
+            }
+        ],
+    }
 
 
 @router.delete("/dsar/{phone}")

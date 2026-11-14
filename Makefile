@@ -1,4 +1,4 @@
-.PHONY: up down build migrate migrate-down seed lint test
+.PHONY: up down build migrate migrate-down migrate-fresh seed lint test
 
 up:
 	docker compose up --build -d
@@ -15,8 +15,15 @@ migrate:
 migrate-down:
 	docker compose run --rm srave-api python -m alembic downgrade -1
 
+migrate-fresh:
+	docker compose run --rm srave-api python -m alembic downgrade base
+	docker compose run --rm srave-api python -m alembic upgrade head
+
 seed:
 	psql -U srave_user -d srave_prod -f database/seeds/sample_lga_boundaries.sql
+
+seed-ogun:
+	psql -U srave_user -d srave_prod -f database/seeds/ogun_lga_boundaries.sql
 
 lint:
 	ruff check services/api

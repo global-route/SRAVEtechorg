@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: srave-ingress
+  namespace: srave
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.srave.io, dashboard.srave.io]
+      secretName: srave-tls
+  rules:
+    - host: api.srave.io
+      http:
+        paths:
+          - path: /api/v1/multilateral
+            pathType: Prefix
+            backend:
+              service: { name: multilateral-api, port: { number: 8003 } }
+          - path: /api/v1/spatial
+            pathType: Prefix
+            backend:
+              service: { name: spatial-worker, port: { number: 8001 } }
+          - path: /api/v1/billing
+            pathType: Prefix
+            backend:
+              service: { name: billing-worker, port: { number: 8002 } }
+          - path: /voice
+            pathType: Prefix
+            backend:
+              service: { name: voice-service, port: { number: 8004 } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: srave-api, port: { number: 8080 } }
+    - host: dashboard.srave.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: dashboard, port: { number: 3001 } }

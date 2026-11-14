@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 
@@ -8,31 +7,29 @@ class SyncService {
   final Database db;
   final String baseUrl;
   final String token;
+  final http.Client _httpClient;
 
-  SyncService({required this.db, required this.baseUrl, required this.token});
+  SyncService({
+    required this.db,
+    required this.baseUrl,
+    required this.token,
+    http.Client? httpClient,
+  }) : _httpClient = httpClient ?? http.Client();
 
   void startListening() {
     Connectivity().onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none) {
-        compute(_syncInBackground, {
-          'db_path': db.path,
-          'base_url': baseUrl,
-          'token': token,
-        });
-      }
+      if (result != ConnectivityResult.none) syncNow();
     });
   }
 
-  static Future<void> _syncInBackground(Map<String, String> args) async {
-    final db = await openDatabase(args['db_path']!);
+  Future<void> syncNow() async {
     final rows = await db.query('buildings', where: 'synced = 0');
-
     for (final row in rows) {
       try {
-        final res = await http.patch(
-          Uri.parse('${args['base_url']}/api/v1/field/buildings/${row['id']}/verify'),
+        final res = await _httpClient.patch(
+          Uri.parse('$baseUrl/field/buildings/${row['id']}/verify'),
           headers: {
-            'Authorization': 'Bearer ${args['token']}',
+            'Authorization': 'Bearer $token',
             'Content-Type': 'application/json',
           },
           body: jsonEncode({
@@ -40,6 +37,7 @@ class SyncService {
             'owner_phone': row['owner_phone'],
             'photo_url': row['photo_path'],
             'property_type': row['property_type'],
+            'owner_language': row['owner_language'],
           }),
         );
 
@@ -58,6 +56,5 @@ class SyncService {
         // Leave synced=0, retry on next reconnection
       }
     }
-    await db.close();
   }
 }
