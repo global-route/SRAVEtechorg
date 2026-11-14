@@ -25,6 +25,9 @@ jobs:
           - service: voice-service
             image: srave-voice
             webhook_secret: COOLIFY_WEBHOOK_VOICE
+          - service: dashboard
+            image: srave-dashboard
+            webhook_secret: COOLIFY_WEBHOOK_DASHBOARD
 
     steps:
       - uses: actions/checkout@v4
@@ -39,8 +42,7 @@ jobs:
       - name: Build & push ${{ matrix.service }}
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: services/${{ matrix.service }}/Dockerfile
+          context: services/${{ matrix.service }}
           push: true
           tags: ghcr.io/atlantic-tech/${{ matrix.image }}:latest
 
