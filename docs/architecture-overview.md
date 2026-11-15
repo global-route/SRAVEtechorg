@@ -37,8 +37,8 @@ SRAVE is composed of five independently deployable Python services behind a sing
 
 | Service | Language | Port | Responsibility |
 |---|---|---|---|
-| `api` | Python (FastAPI) | 8080 | Auth, JWT/RBAC, gap analysis, field routing, audit ledger |
-| `spatial-worker` | Python (FastAPI; Celery task definitions) | 8001 | GEE imagery pull, YOLOv8+SAM footprint extraction |
+| `api` | Python (FastAPI) | 8080 | Auth, JWT/RBAC, gap analysis, field routing, audit ledger, Redis-backed rate limiting |
+| `spatial-worker` | Python (FastAPI; Celery task definitions) | 8001 | GEE imagery pull, YOLOv8+SAM footprint extraction, reclassify task |
 | `billing-worker` | Python (FastAPI) | 8002 | WhatsApp notices, Flutterwave/Paystack payment links |
 | `multilateral-api` | Python (FastAPI) | 8003 | SHA-256 signed compliance metrics for World Bank / UN-Habitat |
 | `voice-service` | Python (FastAPI) | 8004 | MMS TTS voice notices in 5 Nigerian languages |
@@ -108,6 +108,9 @@ operational procedures.
 | 13 | `9ee1ca1` | All 20 Ogun LGA boundaries, structlog JSON logging, Prometheus + Grafana, Celery Flower, dead letter queue + failed_jobs |
 | 14 | `fd33430` | Next.js municipal dashboard (6 pages), WeasyPrint PDF report, payment reminder scheduler, migration 011 |
 | 15 | `6b4abf6` | GeoTIFF tiling, Redis memory cap, provider retries + circuit breakers, complete K3s manifests, PgBouncer |
+| 16 (partial) | `e3c3749` + `a887472` | Auth rate limit zone, DSAR exemption notice, GEE key mount, ClusterIssuer, Ed25519 key mount, k6 load test |
+| sprints 7–8–14–16 | `e7bef6a` | Flutter screens (assignment list, building detail), AuthService, BuildingRepository, tile cache script, photo upload, Redis-backed rate limiter, reclassify Celery task, mTLS config, gap+chain+billing tests, Flutter CI workflow |
+| sprint-17 | `968d273` | SDG alignment in README, multilateral verify tests, dashboard CI workflow, deploy workflow + dashboard service, Makefile + .env.example updated |
 
 ---
 
@@ -116,9 +119,9 @@ operational procedures.
 | Document | What it covers |
 |---|---|
 | [contributing.md](contributing.md) | Local setup, workflow, CI jobs, migration table |
-| [runbook.md](runbook.md) | Deploy, rollback, DB backup, model loading, incident response |
+| [runbook.md](runbook.md) | Deploy, rollback, DB backup, model loading, signing key generation, incident response |
 | [data-model.md](data-model.md) | Full schema reference — all 11 migrations, indexes, key queries |
-| [security.md](security.md) | Auth model, scopes, LGA isolation, secrets, TLS, NDPA/GDPR |
+| [security.md](security.md) | Auth model, scopes, LGA isolation, mTLS, secrets, TLS, NDPA/GDPR |
 | [integrations.md](integrations.md) | GEE, WhatsApp, Flutterwave, Paystack, Mapbox, MMS-TTS setup |
 | [openapi.yaml](openapi.yaml) | Full OpenAPI 3.0 spec — all 22 endpoints |
 | [roadmap.md](roadmap.md) | Sprints 11–15 task breakdown (all complete) |

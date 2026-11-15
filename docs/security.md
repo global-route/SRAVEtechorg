@@ -139,12 +139,39 @@ public key is served at `GET /.well-known/signing-key.pub`.
 
 ---
 
-## Rate limiting
+## mTLS (internal service-to-service)
+
+For K3s deployments, internal service-to-service calls can be secured with mutual TLS using cfssl-generated certificates. See `infrastructure/mtls/README.md` for the full setup procedure.
+
+- Internal CA generated with `cfssl gencert -initca`
+- Per-service certificates signed by the internal CA
+- Certificates stored as K3s secrets, mounted at `/certs`
+- Python services use `httpx.AsyncClient(cert=..., verify=...)` for mTLS calls
+- Compose deployments use the Docker bridge network (mTLS optional at this scale)
+
+---
+
+## Application-layer rate limiting
+
+`RateLimitMiddleware` in `middleware/rate_limit.py` enforces per-scope Redis sliding window limits on `srave-api`:
+
+| Scope | Limit | Window |
+|---|---|---|
+| `admin` | 500 req | 60s |
+| `municipal` | 100 req | 60s |
+| `field_agent` | 60 req | 60s |
+| `multilateral` | 20 req | 60s |
+| `public` (no token) | 10 req | 60s |
+
+Health, token, and multilateral verify endpoints are exempt. Returns `429` with `Retry-After: 60` on breach.
+
+## Nginx rate limiting
 
 Configured in `infrastructure/nginx/nginx.conf`:
 
 | Zone | Rate | Applied to |
 |---|---|---|
+| `auth_limit` | 10r/m, burst 5 | `POST /api/v1/auth/token`, `POST /api/v1/auth/refresh` |
 | `ingest_limit` | 10r/m, burst 5 | `POST /api/v1/spatial/ingest` |
 | `webhook_limit` | 500r/m, burst 50 | `POST /api/v1/billing/webhook/*` |
 | `api_limit` | 200r/m, burst 30–40 | All other routes |

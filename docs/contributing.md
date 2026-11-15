@@ -76,16 +76,17 @@ curl -s -X POST http://localhost:8080/api/v1/auth/token \
 
 ## CI Jobs
 
-| Job | Triggers on | What it checks |
-|---|---|---|
-| `lint` | every push / PR | `ruff check` across all 5 Python services |
-| `test-api` | after lint | Auth, scope, LGA isolation, token refresh |
-| `test-spatial-worker` | after lint | Ingest validation, extraction status |
-| `test-billing-worker` | after lint | Assess flow, asyncpg mocks, Paystack fallback |
-| `test-multilateral-api` | after lint | Verify endpoint, OCDS export, public key |
-| `test-flutter` | after lint | MapScreen widget tests, SyncService unit tests |
+| Job | Workflow | Triggers on | What it checks |
+|---|---|---|---|
+| `lint` | `ci.yml` | every push / PR | `ruff check` across all 5 Python services |
+| `test-api` | `ci.yml` | after lint | Auth, scope, LGA isolation, token refresh, gap analysis, audit chain, billing webhooks |
+| `test-spatial-worker` | `ci.yml` | after lint | Ingest validation, extraction status |
+| `test-billing-worker` | `ci.yml` | after lint | Assess flow, asyncpg mocks, Paystack fallback |
+| `test-multilateral-api` | `ci.yml` | after lint | Verify endpoint, OCDS export, public key, signature |
+| `test-flutter` | `flutter.yml` | push / PR on `services/field-agent-app/**` | MapScreen widget tests, SyncService unit tests |
+| `build-dashboard` | `dashboard.yml` | push / PR on `services/dashboard/**` | Next.js build, type check |
 
-Branch protection (task G1) is deferred — enable when ready via GitHub → Settings → Branches.
+Branch protection ruleset `main-protection` — enable via GitHub → Settings → Rules → Rulesets.
 
 ---
 
@@ -95,22 +96,28 @@ Branch protection (task G1) is deferred — enable when ready via GitHub → Set
 services/
 ├── api/                    ← FastAPI — auth, gap analysis, audit ledger, RBAC
 │   ├── ledger/             ← SHA-256 chain + APScheduler cron (snapshot + reminders)
-│   ├── middleware/         ← auth, RBAC, security headers, request ID, structlog config
+│   ├── middleware/         ← auth, RBAC, security headers, request ID, rate_limit, structlog config
 │   ├── models/             ← Pydantic schemas
 │   ├── repository/         ← asyncpg DB queries
 │   ├── routers/            ← one file per route group
 │   ├── templates/          ← Jinja2 HTML for PDF report
-│   └── tests/              ← pytest
+│   └── tests/              ← pytest (auth, gap+chain, billing webhooks)
 ├── spatial-worker/         ← FastAPI + Celery — GEE, SAM, YOLOv8, tiled inference
+│   ├── ai/reclassify/      ← batch reclassify Celery task
 │   └── tests/
 ├── billing-worker/         ← FastAPI — WhatsApp, Flutterwave, Paystack (with retries)
 │   ├── providers/          ← tenacity retry + circuit breaker per provider
 │   └── tests/
 ├── multilateral-api/       ← FastAPI — JSON-LD signed verify, OCDS export
-│   └── tests/
+│   └── tests/              ← verify signature, OCDS, public key tests
 ├── voice-service/          ← FastAPI — MMS TTS, 5 Nigerian languages, DB lookup
 ├── dashboard/              ← Next.js 14 — municipal web UI (6 pages)
 └── field-agent-app/        ← Flutter — offline-first, SQLite, TFLite, Mapbox GL
+    ├── lib/
+    │   ├── repository/     ← BuildingRepository (SQLite abstraction)
+    │   ├── screens/        ← login, map, assignment_list, building_detail
+    │   └── services/       ← api_service, auth_service, db_service, sync_service, classifier_service
+    ├── scripts/            ← cache_tiles.dart (offline tile pre-cache helper)
     └── test/
 ```
 
