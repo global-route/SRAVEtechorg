@@ -1,3 +1,6 @@
+
+
+
 # Architecture Overview
 
 SRAVE is composed of five independently deployable Python services behind a single Nginx reverse proxy.
@@ -34,6 +37,10 @@ SRAVE is composed of five independently deployable Python services behind a sing
 ```
 
 ## Services
+
+
+SRAVE uniquely combines the AI satellite mapping of Esri/OpenCities with the land tenure documentation of Cadasta and the direct-to-treasury GovTech billing focus of municipal tax platforms—all packaged as a lightweight, open-source, self-hosted Digital Public Good.
+
 
 | Service | Language | Port | Responsibility |
 |---|---|---|---|
