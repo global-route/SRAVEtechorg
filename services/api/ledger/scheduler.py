@@ -23,6 +23,13 @@ def start_scheduler(pool) -> AsyncIOScheduler:
         id="payment_reminders",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        _escalation_check,
+        CronTrigger(hour=8, minute=0),
+        args=[pool],
+        id="escalation_check",
+        replace_existing=True,
+    )
     _scheduler.start()
     return _scheduler
 
@@ -91,3 +98,21 @@ async def _payment_reminders(pool) -> None:
                 log.error("reminder_send_failed", assessment_id=row["id"], error=str(e))
 
     log.info("payment_reminders_complete", sent=sent, total=len(rows))
+
+
+async def _escalation_check(pool) -> None:
+    """
+    Flag assessments as escalated after 3 reminders unpaid (42 days since assessment).
+    """
+    result = await pool.execute(
+        """
+        UPDATE tax_assessments
+        SET escalated = TRUE,
+            escalated_at = NOW(),
+            wa_status = 'escalated'
+        WHERE wa_status = 'reminder_sent'
+          AND assessed_at < NOW() - INTERVAL '42 days'
+          AND escalated = FALSE
+        """
+    )
+    log.info("escalation_check_complete", updated=result)

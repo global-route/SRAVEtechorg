@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 50px; }
+  .letterhead { border-bottom: 3px solid #dc2626; padding-bottom: 16px; margin-bottom: 32px; }
+  .letterhead h1 { color: #dc2626; font-size: 18px; margin: 0 0 4px; }
+  .letterhead p { margin: 2px 0; font-size: 10px; color: #555; }
+  .ref { font-size: 11px; color: #555; margin-bottom: 24px; }
+  .subject { font-weight: bold; font-size: 13px; margin-bottom: 20px;
+             padding: 10px; background: #fef2f2; border-left: 4px solid #dc2626; }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+  td:first-child { color: #555; width: 40%; }
+  td:last-child { font-weight: bold; }
+  .body-text { line-height: 1.7; margin: 16px 0; }
+  .deadline { font-weight: bold; color: #dc2626; }
+  .consequence { margin: 20px 0; padding: 12px; background: #fef2f2;
+                 border: 1px solid #fca5a5; border-radius: 4px; font-size: 11px; }
+  .signature { margin-top: 40px; }
+  .footer { margin-top: 48px; padding-top: 12px; border-top: 1px solid #eee;
+            font-size: 9px; color: #9ca3af; }
+</style>
+</head>
+<body>
+<div class="letterhead">
+  <h1>{{ lga_id }} Local Government Authority</h1>
+  <p>Revenue &amp; Property Tax Department · Powered by SRAVE · Atlantic Tech Innovations</p>
+  <p>Generated: {{ generated_at }}</p>
+</div>
+
+<div class="ref">Reference: {{ ref }} &nbsp;|&nbsp; Assessment ID: {{ ref }}</div>
+
+<div class="subject">FORMAL DEMAND NOTICE — OUTSTANDING PROPERTY TAX</div>
+
+<p class="body-text">Dear <strong>{{ owner_name }}</strong>,</p>
+
+<p class="body-text">
+  This is a formal demand notice issued by the {{ lga_id }} Local Government Authority
+  in respect of outstanding property tax on the premises described below.
+  Despite previous notices, the outstanding balance remains unpaid.
+</p>
+
+<table>
+  <tr><td>Property Address</td><td>{{ address }}</td></tr>
+  <tr><td>LGA</td><td>{{ lga_id }}</td></tr>
+  <tr><td>Total Amount Due</td><td>₦{{ amount_due }}</td></tr>
+  <tr><td>Amount Paid</td><td>₦{{ amount_paid }}</td></tr>
+  <tr><td>Outstanding Balance</td><td>₦{{ outstanding }}</td></tr>
+  <tr><td>Payment Deadline</td><td class="deadline">{{ deadline }}</td></tr>
+</table>
+
+<p class="body-text">
+  You are hereby required to settle the outstanding balance of
+  <strong>₦{{ outstanding }}</strong> on or before
+  <span class="deadline">{{ deadline }}</span>.
+</p>
+
+<div class="consequence">
+  <strong>Notice:</strong> Failure to pay the outstanding balance by the deadline will result in
+  referral of this matter to the LGA legal enforcement unit, which may include property
+  distrain proceedings under the applicable state revenue law.
+</div>
+
+<p class="body-text">
+  To make payment, use your reference number <strong>{{ ref }}</strong> at any approved
+  payment channel or contact the LGA Revenue Office.
+</p>
+
+<div class="signature">
+  <p>Yours faithfully,</p>
+  <br>
+  <p><strong>Director of Revenue</strong><br>{{ lga_id }} Local Government Authority</p>
+  <p style="font-size:9px; color:#9ca3af;">
+    This notice was generated and cryptographically signed by SRAVE.
+    It is linked to the municipal audit chain and is legally valid.
+  </p>
+</div>
+
+<div class="footer">
+  SRAVE · Spatial Revenue &amp; Asset Verification Engine · Atlantic Tech Innovations ·
+  NDPA &amp; GDPR Compliant · DPG Candidate
+</div>
+</body>
+</html>

@@ -99,6 +99,99 @@ async def update_lga_settings(lga_id: str, body: LgaSettings, request: Request, 
     return {"lga_id": lga_id, "confidence_threshold": body.confidence_threshold}
 
 
+# ── Enforcement & Escalation ────────────────────────────────────────────────
+
+@router.post("/assessments/{assessment_id}/escalate", status_code=200)
+async def escalate_assessment(assessment_id: int, request: Request, _=Depends(require_scope("admin"))):
+    row = await request.app.state.pool.fetchrow(
+        """
+        SELECT ta.id, ta.payment_ref, ta.amount_due, ta.amount_paid, ta.assessed_at,
+               ta.owner_phone, tr.owner_name, tr.address, db.lga_id, db.photo_url,
+               db.property_type
+        FROM tax_assessments ta
+        JOIN detected_buildings db ON db.id = ta.building_id
+        LEFT JOIN tax_roll tr ON tr.owner_phone = ta.owner_phone AND tr.lga_id = db.lga_id
+        WHERE ta.id = $1
+        """,
+        assessment_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    await request.app.state.pool.execute(
+        "UPDATE tax_assessments SET escalated=TRUE, escalated_at=NOW(), wa_status='escalated' WHERE id=$1",
+        assessment_id,
+    )
+
+    chain_row = await request.app.state.pool.fetchrow(
+        "SELECT ledger_entry_hash FROM audit_snapshots WHERE lga_id=$1 ORDER BY snapshot_date DESC LIMIT 1",
+        row["lga_id"],
+    )
+
+    import json as _json
+    case_file = {
+        "assessment_id": assessment_id,
+        "payment_ref": row["payment_ref"],
+        "owner_name": row["owner_name"],
+        "owner_phone": row["owner_phone"],
+        "address": row["address"],
+        "lga_id": row["lga_id"],
+        "property_type": row["property_type"],
+        "amount_due": float(row["amount_due"]),
+        "amount_paid": float(row["amount_paid"]),
+        "outstanding": float(row["amount_due"]) - float(row["amount_paid"]),
+        "assessed_at": str(row["assessed_at"]),
+        "photo_url": row["photo_url"],
+        "audit_chain_hash": chain_row["ledger_entry_hash"] if chain_row else "genesis",
+        "escalated_at": "now",
+    }
+    return {"assessment_id": assessment_id, "status": "escalated", "case_file": case_file}
+
+
+@router.get("/assessments/{assessment_id}/legal-notice", response_class=None)
+async def legal_notice_pdf(assessment_id: int, request: Request, _=Depends(require_scope("admin"))):
+    from fastapi.responses import Response
+    from weasyprint import HTML
+    from jinja2 import Template
+    import os as _os
+    from datetime import datetime, timezone, timedelta
+
+    row = await request.app.state.pool.fetchrow(
+        """
+        SELECT ta.payment_ref, ta.amount_due, ta.amount_paid, ta.assessed_at,
+               ta.owner_phone, tr.owner_name, tr.address, db.lga_id
+        FROM tax_assessments ta
+        JOIN detected_buildings db ON db.id = ta.building_id
+        LEFT JOIN tax_roll tr ON tr.owner_phone = ta.owner_phone AND tr.lga_id = db.lga_id
+        WHERE ta.id = $1
+        """,
+        assessment_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    deadline = (datetime.now(timezone.utc) + timedelta(days=14)).strftime("%d %B %Y")
+    tmpl_path = _os.path.join(_os.path.dirname(__file__), "..", "templates", "legal_demand_notice.html")
+    with open(tmpl_path) as f:
+        html = Template(f.read()).render(
+            ref=row["payment_ref"],
+            owner_name=row["owner_name"] or "Property Owner",
+            address=row["address"] or row["lga_id"],
+            lga_id=row["lga_id"],
+            amount_due=f"{float(row['amount_due']):,.0f}",
+            amount_paid=f"{float(row['amount_paid']):,.0f}",
+            outstanding=f"{float(row['amount_due']) - float(row['amount_paid']):,.0f}",
+            deadline=deadline,
+            generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        )
+    pdf_bytes = HTML(string=html).write_pdf()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="legal-notice-{assessment_id}.pdf"'},
+    )
+
+
 # ── Failed jobs (dead letter queue) ─────────────────────────────────────────
 
 @router.get("/failed-jobs")
