@@ -81,3 +81,34 @@ async def send_demand_notice(
         _mark_degraded()
         log.error("whatsapp_failed", phone=phone, ref=ref, error=str(exc))
         raise
+
+
+async def send_document(
+    phone: str, document_bytes: bytes, filename: str, caption: str
+) -> None:
+    if _is_degraded():
+        raise RuntimeError("WhatsApp circuit open")
+
+    # Upload media first
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        upload = await client.post(
+            f"https://graph.facebook.com/v19.0/{WA_PHONE_ID}/media",
+            headers={"Authorization": f"Bearer {WA_TOKEN}"},
+            files={"file": (filename, document_bytes, "application/pdf")},
+            data={"messaging_product": "whatsapp"},
+        )
+        upload.raise_for_status()
+        media_id = upload.json()["id"]
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone,
+        "type": "document",
+        "document": {"id": media_id, "filename": filename, "caption": caption},
+    }
+    try:
+        await _send(payload)
+    except Exception as exc:
+        _mark_degraded()
+        log.error("whatsapp_document_failed", phone=phone, filename=filename, error=str(exc))
+        raise

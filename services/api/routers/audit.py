@@ -60,6 +60,48 @@ async def verify_chain_endpoint(lga_id: str, request: Request, _=Depends(require
     return await verify_chain(request.app.state.pool, lga_id)
 
 
+@router.get("/lga/{lga_id}/reconciliation")
+async def reconciliation(
+    lga_id: str,
+    request: Request,
+    format: str = "json",
+    _=Depends(require_scope_and_lga("municipal", "admin")),
+):
+    row = await request.app.state.pool.fetchrow(
+        """
+        SELECT
+            COUNT(*)                                             AS total_assessed,
+            COUNT(*) FILTER (WHERE wa_status='delivered')        AS delivered,
+            COUNT(*) FILTER (WHERE wa_status='reminder_sent')    AS reminder_sent,
+            COUNT(*) FILTER (WHERE wa_status='partially_paid')   AS partially_paid,
+            COUNT(*) FILTER (WHERE wa_status='paid')             AS paid,
+            COUNT(*) FILTER (WHERE wa_status='escalated')        AS escalated,
+            COALESCE(SUM(amount_due), 0)                         AS total_assessed_ngn,
+            COALESCE(SUM(amount_paid), 0)                        AS total_collected_ngn,
+            COALESCE(SUM(amount_due) - SUM(amount_paid), 0)      AS total_outstanding_ngn
+        FROM tax_assessments ta
+        JOIN detected_buildings db ON db.id = ta.building_id
+        WHERE db.lga_id = $1
+        """,
+        lga_id,
+    )
+    data = dict(row)
+    data["lga_id"] = lga_id
+
+    if format == "csv":
+        import csv, io
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=list(data.keys()))
+        writer.writeheader()
+        writer.writerow(data)
+        return Response(
+            content=buf.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="reconciliation-{lga_id}.csv"'},
+        )
+    return data
+
+
 @router.get("/lga/{lga_id}/report.pdf", response_class=Response)
 async def gap_report_pdf(lga_id: str, request: Request, _=Depends(require_scope_and_lga("municipal", "admin"))):
     from weasyprint import HTML

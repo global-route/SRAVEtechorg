@@ -16,6 +16,17 @@ interface GapAnalysis {
 
 interface DailyCollection { date: string; total_ngn: number; paid_count: number; }
 
+interface Reconciliation {
+  total_assessed: number;
+  delivered: number;
+  partially_paid: number;
+  paid: number;
+  escalated: number;
+  total_assessed_ngn: number;
+  total_collected_ngn: number;
+  total_outstanding_ngn: number;
+}
+
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-white rounded-xl shadow-sm p-6 flex flex-col gap-1">
@@ -29,14 +40,16 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 export default function OverviewPage() {
   const [gap, setGap] = useState<GapAnalysis | null>(null);
   const [collections, setCollections] = useState<DailyCollection[]>([]);
+  const [recon, setRecon] = useState<Reconciliation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
       apiJson<GapAnalysis>(`/audit/lga/${LGA_ID}/gap-analysis`),
       apiJson<DailyCollection[]>(`/audit/lga/${LGA_ID}/collections`),
+      apiJson<Reconciliation>(`/audit/lga/${LGA_ID}/reconciliation`),
     ])
-      .then(([g, c]) => { setGap(g); setCollections(c.slice(0, 14).reverse()); })
+      .then(([g, c, r]) => { setGap(g); setCollections(c.slice(0, 14).reverse()); setRecon(r); })
       .catch((e) => setError(e.message));
   }, []);
 
@@ -60,6 +73,15 @@ export default function OverviewPage() {
           sub={`${gap.compliance_percentage}% compliance`}
         />
       </div>
+
+      {recon && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard label="Total Assessed"    value={fmt(recon.total_assessed_ngn)} />
+          <StatCard label="Total Collected"   value={fmt(recon.total_collected_ngn)} sub={`${recon.paid} paid`} />
+          <StatCard label="Outstanding"       value={fmt(recon.total_outstanding_ngn)} sub={`${recon.partially_paid} partial`} />
+          <StatCard label="Escalated"         value={recon.escalated.toLocaleString()} />
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h2 className="text-sm font-medium text-gray-500 mb-4">Daily Collections — Last 14 Days</h2>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #111; margin: 40px; }
+  .header { border-bottom: 2px solid #16a34a; padding-bottom: 12px; margin-bottom: 24px; }
+  .header h1 { color: #16a34a; font-size: 20px; margin: 0; }
+  .header p { margin: 2px 0; color: #555; font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  td { padding: 8px 4px; border-bottom: 1px solid #eee; }
+  td:first-child { color: #555; width: 40%; }
+  td:last-child { font-weight: bold; }
+  .stamp { margin-top: 32px; padding: 12px; background: #f0fdf4; border: 1px solid #16a34a;
+           border-radius: 4px; font-size: 11px; color: #166534; }
+  .footer { margin-top: 40px; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 8px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>SRAVE — Property Tax Receipt</h1>
+  <p>Spatial Revenue &amp; Asset Verification Engine · Atlantic Tech Innovations</p>
+  <p>Generated: {{ generated_at }}</p>
+</div>
+<table>
+  <tr><td>Reference</td><td>{{ ref }}</td></tr>
+  <tr><td>Owner Name</td><td>{{ owner_name }}</td></tr>
+  <tr><td>Property Address</td><td>{{ address }}</td></tr>
+  <tr><td>Amount Paid</td><td>₦{{ amount_paid }}</td></tr>
+  <tr><td>Payment Date</td><td>{{ payment_date }}</td></tr>
+</table>
+<div class="stamp">
+  ✓ Payment confirmed and recorded in the SRAVE audit ledger.
+  This receipt is cryptographically linked to the municipal audit chain.
+</div>
+<div class="footer">
+  Official property tax receipt issued by the Local Government Authority via SRAVE.
+  Retain for your records.
+</div>
+</body>
+</html>
