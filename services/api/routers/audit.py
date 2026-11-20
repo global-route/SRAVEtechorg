@@ -60,6 +60,60 @@ async def verify_chain_endpoint(lga_id: str, request: Request, _=Depends(require
     return await verify_chain(request.app.state.pool, lga_id)
 
 
+@router.get("/lga/{lga_id}/forecast")
+async def igr_forecast(
+    lga_id: str,
+    request: Request,
+    _=Depends(require_scope_and_lga("municipal", "admin")),
+):
+    from repository.gap import get_monthly_collections
+    monthly = await get_monthly_collections(request.app.state.pool, lga_id)
+    if len(monthly) < 3:
+        return {"lga_id": lga_id, "error": "Insufficient data — need at least 3 months of collections"}
+
+    import statistics
+    values = [m["total_ngn"] for m in monthly]
+    n = len(values)
+    x_mean = (n - 1) / 2
+    y_mean = statistics.mean(values)
+    slope = sum((i - x_mean) * (v - y_mean) for i, v in enumerate(values)) / \
+            sum((i - x_mean) ** 2 for i in range(n))
+    intercept = y_mean - slope * x_mean
+
+    projections = [
+        {"month_offset": i + 1, "projected_ngn": max(0.0, intercept + slope * (n + i))}
+        for i in range(12)
+    ]
+    return {
+        "lga_id": lga_id,
+        "historical_months": len(monthly),
+        "monthly_slope_ngn": round(slope, 2),
+        "projections": projections,
+    }
+
+
+@router.get("/benchmarks")
+async def lga_benchmarks(
+    request: Request,
+    _=Depends(require_scope("admin")),
+):
+    from repository.gap import get_all_lga_benchmarks
+    return await get_all_lga_benchmarks(request.app.state.pool)
+
+
+@router.get("/alerts")
+async def list_alerts(
+    request: Request,
+    resolved: bool = False,
+    _=Depends(require_scope("admin")),
+):
+    rows = await request.app.state.pool.fetch(
+        "SELECT id, actor, action, target_id, payload, logged_at FROM audit_log "
+        "WHERE action='anomaly_detected' ORDER BY logged_at DESC LIMIT 100"
+    )
+    return [dict(r) for r in rows]
+
+
 @router.get("/lga/{lga_id}/reconciliation")
 async def reconciliation(
     lga_id: str,
@@ -100,6 +154,77 @@ async def reconciliation(
             headers={"Content-Disposition": f'attachment; filename="reconciliation-{lga_id}.csv"'},
         )
     return data
+
+
+@router.get("/state/{state_name}/report.pdf", response_class=Response)
+async def state_gap_report_pdf(
+    state_name: str,
+    request: Request,
+    _=Depends(require_scope("admin")),
+):
+    from weasyprint import HTML
+    from jinja2 import Template as J2Template
+
+    rows = await request.app.state.pool.fetch(
+        """
+        SELECT
+            db.lga_id,
+            COUNT(db.id)                                            AS total_detected,
+            COUNT(tr.id)                                            AS registered,
+            COALESCE(SUM(ta.amount_paid), 0)                        AS collected_ngn,
+            ROUND((COUNT(tr.id)::numeric / NULLIF(COUNT(db.id),0)) * 100, 1) AS formalization_pct
+        FROM detected_buildings db
+        LEFT JOIN tax_roll tr ON ST_DWithin(db.footprint::geography, tr.geom::geography, 15)
+        LEFT JOIN tax_assessments ta ON ta.building_id = db.id
+        JOIN lg_boundaries lb ON lb.name = db.lga_id AND lb.state = $1
+        WHERE db.verified = true
+        GROUP BY db.lga_id ORDER BY formalization_pct DESC NULLS LAST
+        """,
+        state_name,
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No data for state: {state_name}")
+
+    lgas = [
+        {
+            "lga_id": r["lga_id"],
+            "total_detected": r["total_detected"],
+            "registered": r["registered"],
+            "collected_ngn": f"{float(r['collected_ngn']):,.0f}",
+            "formalization_pct": float(r["formalization_pct"] or 0),
+        }
+        for r in rows
+    ]
+    total_detected = sum(r["total_detected"] for r in lgas)
+    total_collected = sum(float(r["collected_ngn"].replace(",", "")) for r in lgas)
+
+    html = J2Template("""
+    <!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      body{font-family:Arial,sans-serif;font-size:12px;margin:40px}
+      h1{color:#166534}table{width:100%;border-collapse:collapse;margin-top:16px}
+      th{background:#f0fdf4;padding:8px;text-align:left;font-size:10px;text-transform:uppercase}
+      td{padding:8px;border-bottom:1px solid #eee}
+    </style></head><body>
+    <h1>SRAVE — {{ state_name }} State Revenue Gap Report</h1>
+    <p>Generated {{ generated_at }} · {{ lgas|length }} LGAs · Total detected: {{ total_detected|int }} · Total collected: ₦{{ total_collected }}</p>
+    <table><thead><tr><th>LGA</th><th>Detected</th><th>Registered</th><th>Collected (NGN)</th><th>Formalization</th></tr></thead>
+    <tbody>{% for l in lgas %}<tr><td>{{ l.lga_id }}</td><td>{{ l.total_detected }}</td>
+    <td>{{ l.registered }}</td><td>₦{{ l.collected_ngn }}</td><td>{{ l.formalization_pct }}%</td></tr>{% endfor %}
+    </tbody></table></body></html>
+    """).render(
+        state_name=state_name,
+        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        lgas=lgas,
+        total_detected=total_detected,
+        total_collected=f"{total_collected:,.0f}",
+    )
+    pdf_bytes = HTML(string=html).write_pdf()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="srave-state-{state_name}.pdf"'},
+    )
 
 
 @router.get("/lga/{lga_id}/report.pdf", response_class=Response)

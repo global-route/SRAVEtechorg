@@ -166,8 +166,12 @@ services:
     image: prom/prometheus:v2.52.0
     volumes:
       - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/prometheus-alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
-    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=30d"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
     ports: ["9090:9090"]
     restart: unless-stopped
 
@@ -179,8 +183,27 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infrastructure/monitoring/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/srave.json:ro
+      - ./infrastructure/monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
     ports: ["3000:3000"]
     depends_on: [prometheus]
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:2.9.8
+    volumes:
+      - ./infrastructure/monitoring/loki-config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/config.yaml
+    ports: ["3100:3100"]
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    volumes:
+      - ./infrastructure/monitoring/promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on: [loki]
     restart: unless-stopped
 
   spatial-flower:
@@ -214,3 +237,4 @@ volumes:
   srave-voice-models:
   prometheus-data:
   grafana-data:
+  loki-data:

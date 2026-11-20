@@ -8,12 +8,14 @@ export const metadata: Metadata = {
 };
 
 const NAV = [
-  { href: "/",             label: "Overview" },
-  { href: "/buildings",    label: "Buildings" },
-  { href: "/assessments",  label: "Assessments" },
-  { href: "/ingest",       label: "Ingest" },
-  { href: "/audit",        label: "Audit Chain" },
-  { href: "/reports",      label: "Reports" },
+  { href: "/",           label: "Overview" },
+  { href: "/buildings",  label: "Buildings" },
+  { href: "/assessments",label: "Assessments" },
+  { href: "/ingest",     label: "Ingest" },
+  { href: "/audit",      label: "Audit Chain" },
+  { href: "/analytics",  label: "Analytics" },
+  { href: "/states",     label: "States" },
+  { href: "/reports",    label: "Reports" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -25,6 +25,17 @@ seed-ogun:
 seed-delta:
 	psql -U srave_user -d srave_prod -f database/seeds/delta_lga_boundaries.sql
 
+seed-lagos:
+	psql -U srave_user -d srave_prod -f database/seeds/lagos_lga_boundaries.sql
+
+seed-rivers:
+	psql -U srave_user -d srave_prod -f database/seeds/rivers_lga_boundaries.sql
+
+seed-kano:
+	psql -U srave_user -d srave_prod -f database/seeds/kano_lga_boundaries.sql
+
+seed-all-states: seed-ogun seed-delta seed-lagos seed-rivers seed-kano
+
 lint:
 	ruff check services/api services/spatial-worker services/billing-worker \
 	             services/multilateral-api services/voice-service
