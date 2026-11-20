@@ -75,6 +75,30 @@ async def revoke_client(client_id: str, request: Request, _=Depends(require_scop
         raise HTTPException(status_code=404, detail="Client not found")
 
 
+# ── LGA settings (confidence threshold) ────────────────────────────────────
+
+class LgaSettings(BaseModel):
+    confidence_threshold: float
+
+
+@router.get("/lga/{lga_id}/settings")
+async def get_lga_settings(lga_id: str, request: Request, _=Depends(require_scope("admin"))):
+    row = await request.app.state.pool.fetchrow(
+        "SELECT confidence_threshold, updated_at FROM lga_settings WHERE lga_id=$1", lga_id
+    )
+    return {"lga_id": lga_id, "confidence_threshold": float(row["confidence_threshold"]) if row else 0.45}
+
+
+@router.put("/lga/{lga_id}/settings")
+async def update_lga_settings(lga_id: str, body: LgaSettings, request: Request, _=Depends(require_scope("admin"))):
+    await request.app.state.pool.execute(
+        "INSERT INTO lga_settings (lga_id, confidence_threshold) VALUES ($1,$2) "
+        "ON CONFLICT (lga_id) DO UPDATE SET confidence_threshold=$2, updated_at=NOW()",
+        lga_id, body.confidence_threshold,
+    )
+    return {"lga_id": lga_id, "confidence_threshold": body.confidence_threshold}
+
+
 # ── Failed jobs (dead letter queue) ─────────────────────────────────────────
 
 @router.get("/failed-jobs")

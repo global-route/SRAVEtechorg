@@ -27,10 +27,11 @@ def _load_model(language: str):
     if language not in _models:
         from transformers import VitsModel, AutoTokenizer
         import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         lang_code = MMS_LANG_MAP[language]
         model_id = f"facebook/mms-tts-{lang_code}"
         tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir="/models")
-        model = VitsModel.from_pretrained(model_id, cache_dir="/models")
+        model = VitsModel.from_pretrained(model_id, cache_dir="/models").to(device)
         model.eval()
         _models[language] = (tokenizer, model)
     return _models[language]

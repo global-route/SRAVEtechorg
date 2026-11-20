@@ -32,6 +32,20 @@ class IngestRequest(BaseModel):
         return v
 
 
+@router.post("/ingest/batch", status_code=202)
+async def trigger_ingest_batch(payloads: List[IngestRequest]):
+    r = aioredis.from_url(REDIS_URL)
+    results = []
+    for payload in payloads:
+        job_id = str(uuid.uuid4())
+        await r.setex(f"job:{job_id}", 86400, json.dumps({"status": "queued", "lga_id": payload.lga_id}))
+        from ingestion.tasks import run_ingest
+        run_ingest.delay(job_id, payload.lga_id, payload.bounding_box, payload.source, payload.resolution_meters)
+        results.append({"job_id": job_id, "lga_id": payload.lga_id, "status": "queued"})
+    await r.aclose()
+    return results
+
+
 @router.post("/ingest", status_code=202)
 async def trigger_ingest(payload: IngestRequest):
     job_id = str(uuid.uuid4())

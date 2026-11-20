@@ -45,14 +45,35 @@ def _write_failed_job(task_name: str, job_id: str, lga_id: str, error: str, payl
         log.error("failed_job_write_error", error=str(db_err))
 
 
+def _get_conf_threshold(lga_id: str) -> float:
+    import psycopg2
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "pgbouncer"),
+            port=int(os.getenv("DB_PORT", 5432)),
+            dbname=os.getenv("DB_NAME", "srave_prod"),
+            user=os.getenv("DB_USER", "srave_user"),
+            password=os.getenv("DB_PASSWORD"),
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT confidence_threshold FROM lga_settings WHERE lga_id=%s", (lga_id,))
+        row = cur.fetchone()
+        conn.close()
+        return float(row[0]) if row else 0.45
+    except Exception:
+        return 0.45
+
+
 @celery_app.task(name="ai_tasks.run_extraction", bind=True, max_retries=1)
 def run_extraction(self, job_id: str, lga_id: str, tif_path: str):
     try:
         _set_job(job_id, {"status": "extracting", "lga_id": lga_id})
         log.info("extraction_started", job_id=job_id, lga_id=lga_id)
 
+        conf_threshold = _get_conf_threshold(lga_id)
+
         from ai.detector import detect_buildings
-        buildings = detect_buildings(tif_path)
+        buildings = detect_buildings(tif_path, conf_threshold=conf_threshold)
 
         from ingestion.postgis_writer import write_footprints
         count = write_footprints(lga_id, buildings)

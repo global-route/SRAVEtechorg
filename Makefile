@@ -19,6 +19,12 @@ seed:
 	psql -U srave_user -d srave_prod -f database/seeds/sample_lga_boundaries.sql
 	psql -U srave_user -d srave_prod -f database/seeds/ogun_lga_boundaries.sql
 
+seed-ogun:
+	psql -U srave_user -d srave_prod -f database/seeds/ogun_lga_boundaries.sql
+
+seed-delta:
+	psql -U srave_user -d srave_prod -f database/seeds/delta_lga_boundaries.sql
+
 lint:
 	ruff check services/api services/spatial-worker services/billing-worker \
 	             services/multilateral-api services/voice-service

@@ -27,6 +27,8 @@ def _load_yolo():
     if _yolo_model is None:
         from ultralytics import YOLO
         _yolo_model = YOLO("/models/yolov8m-seg.pt")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        _yolo_model.to(device)
     return _yolo_model
 
 
@@ -34,8 +36,9 @@ def _load_sam():
     global _sam_predictor
     if _sam_predictor is None:
         from segment_anything import sam_model_registry, SamPredictor
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         sam = sam_model_registry["vit_h"](checkpoint="/models/sam_vit_h_4b8939.pth")
-        sam.to("cuda" if torch.cuda.is_available() else "cpu")
+        sam.to(device)
         _sam_predictor = SamPredictor(sam)
     return _sam_predictor
 
@@ -65,10 +68,11 @@ def _tile_transform(base_transform: Affine, row_off: int, col_off: int) -> Affin
                   base_transform.d, base_transform.e, y_off)
 
 
-def detect_buildings(tif_path: str) -> list[dict]:
+def detect_buildings(tif_path: str, conf_threshold: float = 0.45) -> list[dict]:
     """
     Tile GeoTIFF into TILE_SIZE x TILE_SIZE patches with OVERLAP_PX overlap,
     run YOLOv8 + SAM per tile, merge and deduplicate footprints.
+    conf_threshold: per-LGA YOLOv8 confidence threshold from lga_settings.
     """
     model     = _load_yolo()
     predictor = _load_sam()
@@ -82,7 +86,7 @@ def detect_buildings(tif_path: str) -> list[dict]:
 
     for tile, row_off, col_off in _tile_image(img, TILE_SIZE, OVERLAP_PX):
         tile_transform = _tile_transform(transform, row_off, col_off)
-        detections = model.predict(tile, conf=0.45, iou=0.5, verbose=False)
+        detections = model.predict(tile, conf=conf_threshold, iou=0.5, verbose=False)
         predictor.set_image(tile)
 
         for det in detections[0].boxes:
