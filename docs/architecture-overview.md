@@ -118,6 +118,13 @@ operational procedures.
 | 16 (partial) | `e3c3749` + `a887472` | Auth rate limit zone, DSAR exemption notice, GEE key mount, ClusterIssuer, Ed25519 key mount, k6 load test |
 | sprints 7–8–14–16 | `e7bef6a` | Flutter screens (assignment list, building detail), AuthService, BuildingRepository, tile cache script, photo upload, Redis-backed rate limiter, reclassify Celery task, mTLS config, gap+chain+billing tests, Flutter CI workflow |
 | sprint-17 | `968d273` | SDG alignment in README, multilateral verify tests, dashboard CI workflow, deploy workflow + dashboard service, Makefile + .env.example updated |
+| phase-16 | `a887472`+`e3c3749` | Auth rate limit zone, DSAR exemption notice, GEE key mount, ClusterIssuer, Ed25519 key mount, k6 load test |
+| phase-16 cont. | `944d0bc` | Flower Nginx proxy+auth, dashboard token refresh, error boundaries |
+| phase-17/18 | `d805d39` | Delta LGA seed, reclassify asyncpg+register, conf threshold per LGA+migration 012, GPU inference, batch ingest |
+| phase-19 | `c84e54d` | Migration 013 partial payments+index, reconciliation endpoint, receipt PDF+WhatsApp, collections+recon dashboard panel |
+| phase-20 | `c010132` | Escalation scheduler, migration 014, legal notice PDF, enforcement handoff API, dashboard escalated view+filter |
+| phase-21/22 | `bcf3f09` | IGR forecast+benchmarks+anomaly+weekly report, Lagos/Rivers/Kano seeds, states dashboard, state report PDF, HPA, model download script, Loki+Promtail, Prometheus alerts, Grafana datasource provisioning |
+| code-jobs clear | `aa159b6` | DB backup cron+Makefile, S3 photo storage, PlanetScope integration, change detection v2 pixel-diff, multi-region K3s namespaces+state-stack |
 
 ---
 
