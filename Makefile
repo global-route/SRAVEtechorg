@@ -1,4 +1,4 @@
-.PHONY: up down build migrate migrate-down seed lint test secrets-dir
+.PHONY: up down build migrate migrate-down seed lint test secrets-dir backup backup-dir
 
 up:
 	docker compose up --build -d
@@ -49,6 +49,13 @@ test:
 	pytest services/spatial-worker/tests -v
 	pytest services/billing-worker/tests -v
 	pytest services/multilateral-api/tests -v
+
+backup:
+	docker compose exec postgres-db pg_dump -U srave_user srave_prod | gzip > backups/srave_$(shell date +%Y%m%d_%H%M%S).sql.gz
+	@echo "Backup saved to backups/"
+
+backup-dir:
+	mkdir -p backups
 
 secrets-dir:
 	mkdir -p secrets

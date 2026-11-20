@@ -188,6 +188,28 @@ services:
     depends_on: [prometheus]
     restart: unless-stopped
 
+  db-backup:
+    image: postgis/postgis:15-3.3
+    environment:
+      POSTGRES_USER: srave_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      PGHOST: postgres-db
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          sleep 86400
+          pg_dump -U srave_user srave_prod | gzip > /backups/srave_$$(date +%Y%m%d_%H%M%S).sql.gz
+          find /backups -name '*.sql.gz' -mtime +7 -delete
+          echo "Backup complete"
+        done
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    restart: unless-stopped
+
   loki:
     image: grafana/loki:2.9.8
     volumes:

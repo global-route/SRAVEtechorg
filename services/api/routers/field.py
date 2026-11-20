@@ -5,7 +5,27 @@ from middleware.auth import require_scope
 
 router = APIRouter()
 
+PHOTO_STORAGE_BACKEND = os.getenv("PHOTO_STORAGE_BACKEND", "local")  # "local" | "s3"
 PHOTO_DIR = os.getenv("PHOTO_STORAGE_PATH", "/data/photos")
+S3_BUCKET = os.getenv("PHOTO_S3_BUCKET", "")
+S3_REGION = os.getenv("PHOTO_S3_REGION", "us-east-1")
+S3_PREFIX = os.getenv("PHOTO_S3_PREFIX", "field-photos")
+
+
+async def _store_photo(contents: bytes, filename: str) -> str:
+    if PHOTO_STORAGE_BACKEND == "s3":
+        import boto3
+        s3 = boto3.client("s3", region_name=S3_REGION)
+        key = f"{S3_PREFIX}/{filename}"
+        s3.put_object(Bucket=S3_BUCKET, Key=key, Body=contents, ContentType="image/jpeg")
+        return f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{key}"
+    else:
+        os.makedirs(PHOTO_DIR, exist_ok=True)
+        path = os.path.join(PHOTO_DIR, filename)
+        with open(path, "wb") as f:
+            f.write(contents)
+        base_url = os.getenv("API_BASE_URL", "https://api.srave.io")
+        return f"{base_url}/photos/{filename}"
 
 
 @router.get("/assignments/{agent_id}")
@@ -59,12 +79,8 @@ async def upload_photo(
     file: UploadFile = File(...),
     _=Depends(require_scope("field_agent", "admin")),
 ):
-    os.makedirs(PHOTO_DIR, exist_ok=True)
     ext = os.path.splitext(file.filename or "photo.jpg")[1] or ".jpg"
     filename = f"{uuid.uuid4()}{ext}"
-    path = os.path.join(PHOTO_DIR, filename)
     contents = await file.read()
-    with open(path, "wb") as f:
-        f.write(contents)
-    base_url = os.getenv("API_BASE_URL", "https://api.srave.io")
-    return {"photo_url": f"{base_url}/photos/{filename}"}
+    photo_url = await _store_photo(contents, filename)
+    return {"photo_url": photo_url}

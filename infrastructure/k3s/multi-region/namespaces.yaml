@@ -1,0 +1,51 @@
+# Multi-region K3s architecture for SRAVE
+# One namespace per state. Each namespace gets its own Postgres + Redis PVCs.
+# Shared: multilateral-api (cross-state), monitoring stack.
+#
+# Deploy per state:
+#   kubectl apply -f infrastructure/k3s/multi-region/namespaces.yaml
+#   STATE=ogun kubectl apply -f infrastructure/k3s/multi-region/state-stack.yaml
+#   STATE=delta kubectl apply -f infrastructure/k3s/multi-region/state-stack.yaml
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: srave-ogun
+  labels:
+    srave.io/state: ogun
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: srave-delta
+  labels:
+    srave.io/state: delta
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: srave-lagos
+  labels:
+    srave.io/state: lagos
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: srave-rivers
+  labels:
+    srave.io/state: rivers
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: srave-kano
+  labels:
+    srave.io/state: kano
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: srave-shared
+  labels:
+    srave.io/role: shared

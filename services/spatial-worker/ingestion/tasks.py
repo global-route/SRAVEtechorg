@@ -52,10 +52,17 @@ def run_ingest(self, job_id: str, lga_id: str, bbox: list, source: str, resoluti
         _set_job(job_id, {"status": "processing", "lga_id": lga_id})
         log.info("ingest_started", job_id=job_id, lga_id=lga_id)
 
-        from ingestion.gee_client import init_gee, fetch_imagery, export_geotiff
-        init_gee()
-        image = fetch_imagery(bbox)
-        tif_path = export_geotiff(image, bbox, job_id, resolution_m)
+        from ingestion.gee_client import init_gee, fetch_imagery, export_geotiff, export_geotiff_planet
+        import asyncio
+
+        if source.lower() == "planetscope":
+            tif_path = asyncio.get_event_loop().run_until_complete(
+                export_geotiff_planet(bbox, job_id)
+            )
+        else:
+            init_gee()
+            image = fetch_imagery(bbox, source=source)
+            tif_path = export_geotiff(image, bbox, job_id, resolution_m)
 
         _set_job(job_id, {"status": "imagery_ready", "lga_id": lga_id, "tif_path": tif_path})
         log.info("imagery_ready", job_id=job_id, lga_id=lga_id)
